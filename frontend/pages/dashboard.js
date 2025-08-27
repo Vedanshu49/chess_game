@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabasejs";
 import Navbar from "../components/NavBar";
 import toast, { Toaster } from 'react-hot-toast';
+import { useAuth } from '../lib/AuthProvider'; // Import useAuth
 
 function generateInviteCode(length = 6) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -15,31 +16,21 @@ function generateInviteCode(length = 6) {
 
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    async function loadUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        router.replace("/login");
-      } else {
-        setUser(session.user);
-      }
-    }
-    loadUser();
-  }, [router]);
-
+  const { user, loading } = useAuth(); // Use the useAuth hook
 
   // Start Game Modal State
   const [showStartModal, setShowStartModal] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [searching, setSearching] = useState(false);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading, router]);
+
   async function handleCreateLocalGame() {
-    if (!user) { toast.error("You must be logged in to create a game."); return; }
+    if (!user || !user.id) { toast.error("You must be logged in to create a game."); return; }
     setSearching(true);
     const { data, error } = await supabase
       .from('games')
@@ -68,7 +59,7 @@ export default function Dashboard() {
   }
 
   async function handleCreateCodeGame() {
-    if (!user) { toast.error("You must be logged in to create a game."); return; }
+    if (!user || !user.id) { toast.error("You must be logged in to create a game."); return; }
     setSearching(true);
     const inviteCode = generateInviteCode();
     const { data, error } = await supabase
@@ -98,7 +89,7 @@ export default function Dashboard() {
   }
 
   async function handlePlayOnline() {
-    if (!user) { toast.error("You must be logged in to play online."); return; }
+    if (!user || !user.id) { toast.error("You must be logged in to play online."); return; }
     setSearching(true);
 
     // Try to find a waiting game
@@ -161,7 +152,7 @@ export default function Dashboard() {
   }
 
   // Prevent SSR errors: only render dashboard if user is loaded
-  if (!user) {
+  if (loading || !user) { // Use loading from useAuth
     return (
       <>
         <Navbar />
@@ -185,7 +176,7 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold">Chess App</h1>
           <div className="text-xs text-gray-400 mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
         </div>
-        <h2 className="text-2xl font-bold mb-6">Welcome, {(user.user_metadata && user.user_metadata.username) ? user.user_metadata.username : user.email}</h2>
+        <h2 className="text-2xl font-bold mb-6">Welcome, {(user.profile && user.profile.username) ? user.profile.username : user.email}</h2> {/* Safely access username */}
         <button className="btn mb-8" onClick={() => setShowStartModal(true)}>Start Game</button>
         {showStartModal && (
           <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
