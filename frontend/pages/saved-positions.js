@@ -4,37 +4,41 @@ import { supabase } from '@/lib/supabasejs';
 import NavBar from '@/components/NavBar';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
+import { useAuth } from '@/lib/AuthProvider'; // Import useAuth
+
 const Chessboard = dynamic(() => import('chessboardjsx'), { ssr: false });
 
 export default function SavedPositions() {
   const r = useRouter();
-  const [user, setUser] = useState(null);
+  const { user, loading } = useAuth(); // Use the useAuth hook
   const [positions, setPositions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [positionsLoading, setPositionsLoading] = useState(true); // Renamed to avoid conflict with auth loading
 
   useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) {
-        r.replace('/login');
-        return;
-      }
-      setUser(auth.user);
+    if (!loading && !user) {
+      r.replace('/login');
+    } else if (user) {
+      fetchSavedPositions();
+    }
+  }, [user, loading, r]);
 
-      const { data, error } = await supabase
-        .from('saved_positions')
-        .select('*')
-        .eq('user_id', auth.user.id)
-        .order('created_at', { ascending: false });
+  async function fetchSavedPositions() {
+    if (!user) return;
+    setPositionsLoading(true);
 
-      if (error) {
-        console.error('Error fetching saved positions:', error);
-      } else {
-        setPositions(data);
-      }
-      setLoading(false);
-    })();
-  }, []);
+    const { data, error } = await supabase
+      .from('saved_positions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching saved positions:', error);
+    } else {
+      setPositions(data);
+    }
+    setPositionsLoading(false);
+  }
 
   async function deletePosition(id) {
     const { error } = await supabase
@@ -49,7 +53,7 @@ export default function SavedPositions() {
     }
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading || positionsLoading) return <p>Loading...</p>; // Use combined loading state
 
   return (
     <>

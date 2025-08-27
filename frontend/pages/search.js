@@ -2,41 +2,37 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabasejs'
 import NavBar from '@/components/NavBar'
 import { useRouter } from 'next/router'
+import { useAuth } from '@/lib/AuthProvider' // Import useAuth
 
 export default function SearchPage() {
-  const [user, setUser] = useState(null)
+  const { user, loading } = useAuth(); // Use the useAuth hook
   const [searchTerm, setSearchTerm] = useState('')
   const [results, setResults] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false) // Renamed to avoid conflict with auth loading
   const [challengeModal, setChallengeModal] = useState({ isOpen: false, friendId: null, friendUsername: null })
   const [timeControl, setTimeControl] = useState({ time: 5, increment: 0 })
   const router = useRouter()
 
   useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser()
-      if (auth.user) {
-        setUser(auth.user)
-      } else {
-        router.replace('/login')
-      }
-    })()
-  }, [])
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
-      if (searchTerm.trim().length > 1) {
+      if (searchTerm.trim().length > 1 && user) { // Only search if user is loaded
         performSearch()
       }
     }, 300) // 300ms debounce
 
     return () => clearTimeout(debounce)
-  }, [searchTerm])
+  }, [searchTerm, user]) // Add user to dependency array
 
   async function performSearch() {
-    setLoading(true)
-    const { data, error } = await supabase.rpc('search_players', { 
-      search_term: searchTerm 
+    setSearchLoading(true)
+    const { data, error } = await supabase.rpc('search_players', {
+      search_term: searchTerm
     })
 
     if (error) {
@@ -45,11 +41,11 @@ export default function SearchPage() {
     } else {
       setResults(data)
     }
-    setLoading(false)
+    setSearchLoading(false)
   }
 
   async function handleSendRequest(friendId) {
-    if (!user) return;
+    if (!user || !user.id) return; // Ensure user and user.id exist
 
     const { error } = await supabase.from('friends').insert({
       user_id: user.id,
@@ -59,13 +55,11 @@ export default function SearchPage() {
 
     if (error) {
       alert(error.message);
-    } else {
-      alert('Friend request sent!');
     }
   }
 
   async function handleChallenge() {
-    if (!user || !challengeModal.friendId) return
+    if (!user || !user.id || !challengeModal.friendId) return // Ensure user and user.id exist
 
     const { data, error } = await supabase
       .from('games')
@@ -86,6 +80,10 @@ export default function SearchPage() {
       setChallengeModal({ isOpen: false, friendId: null, friendUsername: null });
       router.push(`/game/${data[0].id}`)
     }
+  }
+
+  if (loading) { // Display loading from AuthProvider
+    return <div>Loading...</div>
   }
 
   return (
@@ -123,7 +121,7 @@ export default function SearchPage() {
           </div>
         )}
 
-        {loading ? (
+        {searchLoading ? ( // Use searchLoading here
           <p>Loading...</p>
         ) : (
           <ul className="space-y-2">

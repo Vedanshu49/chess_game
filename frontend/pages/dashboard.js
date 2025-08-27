@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabasejs";
 import Navbar from "../components/NavBar";
-import dynamic from 'next/dynamic';
 import toast, { Toaster } from 'react-hot-toast';
-
-const LocalChessboard = dynamic(() => import('../components/LocalChessboard'), { ssr: false });
 
 function generateInviteCode(length = 6) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -38,9 +35,37 @@ export default function Dashboard() {
 
   // Start Game Modal State
   const [showStartModal, setShowStartModal] = useState(false);
-  const [startMode, setStartMode] = useState(null); // 'local', 'online', 'join'
   const [joinCode, setJoinCode] = useState('');
   const [searching, setSearching] = useState(false);
+
+  async function handleCreateLocalGame() {
+    if (!user) { toast.error("You must be logged in to create a game."); return; }
+    setSearching(true);
+    const { data, error } = await supabase
+      .from('games')
+      .insert({
+        status: 'local',
+        creator: user.id,
+        opponent: user.id, // For local game, opponent is the same user
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        initial_time_seconds: 600, // 10 minutes
+        white_time_left: 600,
+        black_time_left: 600,
+      })
+      .select()
+      .single();
+
+    setSearching(false);
+
+    if (error) {
+      toast.error('Error creating game: ' + error.message);
+      return;
+    }
+
+    if (data) {
+      router.push(`/game/${data.id}`);
+    }
+  }
 
   async function handleCreateCodeGame() {
     if (!user) { toast.error("You must be logged in to create a game."); return; }
@@ -167,8 +192,8 @@ export default function Dashboard() {
             <div className="bg-[#1a2233] p-8 rounded-lg shadow-lg w-full max-w-md relative">
               <button className="absolute top-2 right-2 text-white" onClick={() => setShowStartModal(false)}>✕</button>
               <h2 className="text-2xl font-bold mb-6 text-center">Start Game</h2>
-              <button className="btn w-full mb-4" onClick={() => setStartMode('local')}>
-                Play Local (2 players, one device)
+              <button className="btn w-full mb-4" onClick={handleCreateLocalGame} disabled={searching}>
+                {searching ? 'Creating...' : 'Play Local (2 players, one device)'}
               </button>
               <button className="btn w-full mb-4" onClick={handlePlayOnline} disabled={searching}>
                 {searching ? 'Searching...' : 'Play Online (matchmaking)'}
@@ -189,12 +214,6 @@ export default function Dashboard() {
                   Join
                 </button>
               </div>
-              {startMode === 'local' && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-2 text-center">Local Chess Game</h3>
-                  <LocalChessboard />
-                </div>
-              )}
             </div>
           </div>
         )}

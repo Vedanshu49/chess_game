@@ -3,33 +3,23 @@ import { supabase } from '@/lib/supabasejs'
 import NavBar from '@/components/NavBar'
 import { useRouter } from 'next/router'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { useAuth } from '@/lib/AuthProvider' // Import useAuth
 
 export default function LeaderboardPage() {
-  const [user, setUser] = useState(null)
+  const { user, loading } = useAuth(); // Use the useAuth hook
   const [leaderboardData, setLeaderboardData] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true) // Renamed to avoid conflict with auth loading
   const [timeFrame, setTimeFrame] = useState('all_time') // 'all_time', 'weekly', 'monthly'
   const router = useRouter()
 
   useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser()
-      if (auth.user) {
-        setUser(auth.user)
-      } else {
-        router.replace('/login')
-      }
-    })()
-  }, [])
-
-  useEffect(() => {
-    if (user) {
-      fetchLeaderboard()
+    if (!loading && !user) {
+      router.replace('/login');
     }
-  }, [user, timeFrame])
+  }, [user, loading, router, timeFrame]); // Added timeFrame to dependencies
 
   async function fetchLeaderboard() {
-    setLoading(true)
+    setLeaderboardLoading(true)
     const { data, error } = await supabase.rpc('get_leaderboard', {
       time_frame: timeFrame
     })
@@ -40,7 +30,7 @@ export default function LeaderboardPage() {
     } else {
       setLeaderboardData(data)
     }
-    setLoading(false)
+    setLeaderboardLoading(false)
   }
 
   const TimeFrameButton = ({ frame, label }) => (
@@ -50,6 +40,10 @@ export default function LeaderboardPage() {
       {label}
     </button>
   )
+
+  if (loading || leaderboardLoading) { // Display loading from AuthProvider or leaderboard fetching
+    return <LoadingSpinner />
+  }
 
   return (
     <>
@@ -63,32 +57,28 @@ export default function LeaderboardPage() {
             <TimeFrameButton frame="monthly" label="Monthly" />
           </div>
         </div>
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
-          <div className="bg-[#1c2836] rounded-lg shadow-lg">
-            <table className="w-full text-left">
-              <thead className="bg-[#233041]">
-                <tr>
-                  <th className="p-4">Rank</th>
-                  <th className="p-4">Player</th>
-                  <th className="p-4">{timeFrame === 'all_time' ? 'Rating' : 'Wins'}</th>
-                  {timeFrame !== 'all_time' && <th className="p-4">Rating</th>}
+        <div className="bg-[#1c2836] rounded-lg shadow-lg">
+          <table className="w-full text-left">
+            <thead className="bg-[#233041]">
+              <tr>
+                <th className="p-4">Rank</th>
+                <th className="p-4">Player</th>
+                <th className="p-4">{timeFrame === 'all_time' ? 'Rating' : 'Wins'}</th>
+                {timeFrame !== 'all_time' && <th className="p-4">Rating</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboardData.map((player, index) => (
+                <tr key={player.username} className="border-b border-[#233041]">
+                  <td className="p-4">{index + 1}</td>
+                  <td className="p-4">{player.username}</td>
+                  <td className="p-4">{timeFrame === 'all_time' ? player.rating : player.wins}</td>
+                  {timeFrame !== 'all_time' && <td className="p-4">{player.rating}</td>}
                 </tr>
-              </thead>
-              <tbody>
-                {leaderboardData.map((player, index) => (
-                  <tr key={player.username} className="border-b border-[#233041]">
-                    <td className="p-4">{index + 1}</td>
-                    <td className="p-4">{player.username}</td>
-                    <td className="p-4">{timeFrame === 'all_time' ? player.rating : player.wins}</td>
-                    {timeFrame !== 'all_time' && <td className="p-4">{player.rating}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   )

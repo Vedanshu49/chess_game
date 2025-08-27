@@ -3,50 +3,23 @@ import { supabase } from '@/lib/supabasejs'
 import NavBar from '@/components/NavBar'
 import { useRouter } from 'next/router'
 import Avatar from '@/components/Avatar'
+import { useAuth } from '@/lib/AuthProvider' // Import useAuth
 
 export default function ProfilePage() {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading } = useAuth(); // Use the useAuth hook
   const router = useRouter()
+  const [profile, setProfile] = useState(null); // Keep local profile state for updates
 
   useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser()
-      if (auth.user) {
-        setUser(auth.user)
-      } else {
-        router.replace('/login')
-      }
-    })()
-  }, [])
-
-  useEffect(() => {
-    if (user) {
-      fetchProfile()
+    if (!loading && !user) {
+      router.replace('/login');
+    } else if (user && user.profile) {
+      setProfile(user.profile); // Set profile from auth context
     }
-  }, [user])
-
-  async function fetchProfile() {
-    if (!user) return
-    setLoading(true)
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    if (error) {
-      console.error('Error fetching profile:', error)
-    } else {
-      setProfile(data)
-    }
-
-    setLoading(false)
-  }
+  }, [user, loading, router]);
 
   async function updateAvatar(avatarUrl) {
+    if (!user || !user.profile) return;
     const { error } = await supabase
       .from('profiles')
       .update({ avatar_url: avatarUrl })
@@ -61,7 +34,7 @@ export default function ProfilePage() {
 
   async function handleUpdateUsername(e) {
     e.preventDefault();
-    if (!newUsername.trim()) return;
+    if (!newUsername.trim() || !user || !user.profile) return;
 
     const { error } = await supabase
       .from('profiles')
@@ -72,12 +45,12 @@ export default function ProfilePage() {
       toast.error(error.message);
     } else {
       toast.success('Username updated!');
-      setProfile({ ...profile, username: newUsername.trim() });
+      setProfile({ ...profile, username: newUsername.trim() }); // Update local profile state
       setNewUsername('');
     }
   }
 
-  if (loading || !profile) {
+  if (loading || !profile) { // Check for loading from useAuth and local profile state
     return <div>Loading...</div>
   }
 
