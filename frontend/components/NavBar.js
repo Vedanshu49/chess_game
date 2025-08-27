@@ -1,0 +1,78 @@
+import { useRouter } from "next/router";
+import { supabase } from "@/lib/supabasejs";
+import { useTheme } from "@/lib/ThemeContext";
+
+export default function Navbar() {
+  const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/login");
+  };
+
+  return (
+    <nav className="bg-gray-900 px-6 py-4 flex justify-between items-center shadow-md">
+      <div className="flex flex-col cursor-pointer" onClick={() => router.push("/dashboard") }>
+        <span className="text-2xl font-bold text-white">♟ Chess App</span>
+        <span className="text-xs text-gray-400 ml-6" style={{lineHeight:'1.1'}}>A project by Vedanshu</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <button
+          onClick={toggleTheme}
+          className="text-white hover:text-gray-300 transition"
+        >
+          {theme === 'light' ? '🌙' : '☀️'}
+        </button>
+        <button
+          onClick={() => router.push("/profile")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Profile
+        </button>
+        <button
+          onClick={() => router.push("/friends")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Friends
+        </button>
+        <button
+          onClick={() => router.push("/search")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Search
+        </button>
+        <button
+          onClick={() => router.push("/history")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          History
+        </button>
+        <button
+          onClick={() => router.push("/saved-positions")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Saved Positions
+        </button>
+        <button
+          onClick={() => router.push("/leaderboard")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Leaderboard
+        </button>
+        <button
+          onClick={() => router.push("/spectate")}
+          className="text-white hover:text-gray-300 transition"
+        >
+          Spectate
+        </button>
+        <button
+          onClick={handleLogout}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
+        >
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+}
