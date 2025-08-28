@@ -46,6 +46,12 @@ export default function SpectatePage() {
     <>
       <NavBar user={user} />
       <div className="container mx-auto p-4">
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="btn mb-4"
+        >
+          &larr; Back to Dashboard
+        </button>
         <h1 className="text-2xl font-bold mb-4">Spectate Games</h1>
         <div className="bg-[#1c2836] rounded-lg shadow-lg">
           <ul className="divide-y divide-[#233041]">

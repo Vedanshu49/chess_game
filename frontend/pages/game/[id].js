@@ -153,7 +153,7 @@ export default function GamePage() {
       const move = chess.move({
         from: sourceSquare,
         to: targetSquare,
-        promotion: 'q', // always promote to a queen for simplicity
+        promotion: 'q',
       });
 
       if (move === null) {
@@ -177,8 +177,8 @@ export default function GamePage() {
 
       const { error } = await supabase
         .from('games')
-        .update({ 
-          fen: newFen, 
+        .update({
+          fen: newFen,
           white_time_left: newWhiteTime,
           black_time_left: newBlackTime,
           last_move_at: new Date(moveTime).toISOString(),
@@ -187,7 +187,6 @@ export default function GamePage() {
 
       if (error) {
         toast.error('Error saving move: ' + error.message);
-        // Revert move on error
         chess.undo();
         setFen(chess.fen());
         setCapturedPieces(calculateCapturedPieces(chess.fen()));
@@ -196,6 +195,24 @@ export default function GamePage() {
     } catch (error) {
       console.log('Invalid move:', error);
       toast.error('An unexpected error occurred.');
+    }
+  };
+
+  const handleResign = async () => {
+    if (!game || !user) return;
+
+    if (window.confirm('Are you sure you want to resign?')) {
+      const winner = game.creator === user.id ? game.opponent : game.creator;
+      const { error } = await supabase
+        .from('games')
+        .update({ status: 'finished', winner: winner })
+        .eq('id', gameId);
+
+      if (error) {
+        toast.error('Error resigning: ' + error.message);
+      } else {
+        toast.success('You have resigned. The opponent wins.');
+      }
     }
   };
 
@@ -214,16 +231,13 @@ export default function GamePage() {
     <>
       <Toaster position="bottom-center" />
       <Navbar />
-      {/* Main game container: flex-col on small, flex-row on medium+ */}
-      <div className="min-h-screen bg-black text-white p-4 flex flex-col md:flex-row items-center md:items-start justify-center md:justify-start">
-        {/* Chessboard section */}
-        <div className="w-full md:w-2/3 lg:w-3/4 flex justify-center items-center p-2"> {/* Adjusted width for larger screens */}
-          <div className="w-full max-w-xl aspect-square"> {/* Max-width to prevent board from getting too big */}
+      <div className="min-h-screen bg-black text-white p-4 flex flex-col lg:flex-row items-center lg:items-start justify-center">
+        <div className="w-full lg:w-auto flex justify-center items-center p-2 lg:flex-grow">
+          <div className="w-[90vh] max-w-[90vw] aspect-square">
             <LocalChessboard fen={fen} onMove={handleMove} />
           </div>
         </div>
-        {/* Game Info section */}
-        <div className="w-full md:w-1/3 lg:w-1/4 bg-gray-900 p-4 rounded-lg md:ml-4 mt-4 md:mt-0"> {/* Adjusted width for larger screens */}
+        <div className="w-full lg:w-96 bg-gray-900 p-4 rounded-lg mt-4 lg:mt-0 lg:ml-4 flex-shrink-0">
           <h2 className="text-2xl font-bold mb-4">Game Info</h2>
           <div className="space-y-4">
             <Timer initialTime={whiteTime} isRunning={chess.turn() === 'w'} />
@@ -245,6 +259,22 @@ export default function GamePage() {
               <p>White: {game.creator_username || 'Player 1'}</p>
               <p>Black: {game.opponent_username || 'Player 2'}</p>
             </div>
+            {game.status === 'local' && (
+              <button
+                className="btn w-full mt-4"
+                onClick={() => router.push('/dashboard')}
+              >
+                Leave Match
+              </button>
+            )}
+            {game.status === 'in_progress' && (
+              <button
+                className="btn w-full mt-4 bg-red-600 hover:bg-red-700"
+                onClick={handleResign}
+              >
+                Resign
+              </button>
+            )}
           </div>
         </div>
       </div>

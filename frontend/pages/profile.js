@@ -1,110 +1,144 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabasejs'
-import NavBar from '@/components/NavBar'
-import { useRouter } from 'next/router'
-import Avatar from '@/components/Avatar'
-import { useAuth } from '@/lib/AuthProvider' // Import useAuth
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabasejs';
+import { useRouter } from 'next/router';
+import Avatar from '@/components/Avatar';
+import { useAuth } from '@/lib/AuthProvider';
+import PageWithHeader from '@/components/PageWithHeader';
+import toast from 'react-hot-toast';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function ProfilePage() {
-  const { user, loading } = useAuth(); // Use the useAuth hook
-  const router = useRouter()
-  const [profile, setProfile] = useState(null); // Keep local profile state for updates
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [newUsername, setNewUsername] = useState('');
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.replace('/login');
-    } else if (user && user.profile) {
-      setProfile(user.profile); // Set profile from auth context
+    } else if (user) {
+      // The user object from useAuth should already contain the profile
+      if (user.profile) {
+        setProfile(user.profile);
+        setProfileLoading(false);
+      } else {
+        // Fallback if profile is not in the auth user object for some reason
+        fetchProfile();
+      }
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
-  async function updateAvatar(avatarUrl) {
-    if (!user || !user.profile) return;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ avatar_url: avatarUrl })
-      .eq('id', user.id)
-
-    if (error) {
-      alert(error.message)
+  async function fetchProfile() {
+    if (!user) return;
+    setProfileLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (error) throw error;
+      setProfile(data);
+    } catch (error) {
+      toast.error('Failed to fetch profile: ' + error.message);
+    } finally {
+      setProfileLoading(false);
     }
   }
 
-  const [newUsername, setNewUsername] = useState('');
+  async function updateAvatar(avatarUrl) {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', user.id);
+      if (error) throw error;
+      setProfile({ ...profile, avatar_url: avatarUrl });
+      toast.success('Avatar updated!');
+    } catch (error) {
+      toast.error('Error updating avatar: ' + error.message);
+    }
+  }
 
   async function handleUpdateUsername(e) {
     e.preventDefault();
-    if (!newUsername.trim() || !user || !user.profile) return;
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ username: newUsername.trim() })
-      .eq('id', user.id);
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Username updated!');
-      setProfile({ ...profile, username: newUsername.trim() }); // Update local profile state
+    if (!newUsername.trim() || !user) return;
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ username: newUsername.trim() })
+        .eq('id', user.id);
+      if (error) throw error;
+      setProfile({ ...profile, username: newUsername.trim() });
       setNewUsername('');
+      toast.success('Username updated!');
+    } catch (error) {
+      toast.error('Error updating username: ' + error.message);
     }
   }
 
-  if (loading || !profile) { // Check for loading from useAuth and local profile state
-    return <div>Loading...</div>
+  if (authLoading || profileLoading) {
+    return (
+      <PageWithHeader user={user} title="Profile">
+        <LoadingSpinner />
+      </PageWithHeader>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <PageWithHeader user={user} title="Profile">
+        <p>Could not load profile.</p>
+      </PageWithHeader>
+    );
   }
 
   return (
-    <>
-      <NavBar user={user} />
-      <div className="container mx-auto p-4">
-        <div className="max-w-md mx-auto bg-[#1c2836] rounded-lg shadow-lg p-6">
-          <div className="flex flex-col items-center mb-6">
-            <Avatar
-              url={profile.avatar_url}
-              size={150}
-              onUpload={(url) => {
-                updateAvatar(url)
-                setProfile({ ...profile, avatar_url: url })
-              }}
-            />
-            <h1 className="text-3xl font-bold text-white text-center mt-4">{profile.username}</h1>
-          </div>
-          <div className="flex justify-center items-center space-x-4 text-lg mb-6">
-            <div className="text-center">
-              <p className="text-gray-400">Rating</p>
-              <p className="text-white font-semibold">{profile.rating}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-gray-400">Wins</p>
-              <p className="text-green-500 font-semibold">{profile.wins}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Losses</p>
-              <p className="text-red-500 font-semibold">{profile.losses}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Draws</p>
-              <p className="text-gray-500 font-semibold">{profile.draws}</p>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <form onSubmit={handleUpdateUsername} className="flex gap-2">
-              <input
-                type="text"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
-                placeholder="New username"
-                className="flex-1 bg-[#0e141b] rounded-lg px-3 py-2"
-              />
-              <button type="submit" className="btn bg-blue-600 hover:bg-blue-700">Update</button>
-            </form>
+    <PageWithHeader user={user} title="Profile">
+      <div className="max-w-md mx-auto bg-[#1c2836] rounded-lg shadow-lg p-6">
+        <div className="flex flex-col items-center mb-6">
+          <Avatar
+            url={profile.avatar_url}
+            size={150}
+            onUpload={updateAvatar}
+          />
+          <h1 className="text-3xl font-bold text-white text-center mt-4">{profile.username}</h1>
+        </div>
+        <div className="flex justify-center items-center space-x-4 text-lg mb-6">
+          <div className="text-center">
+            <p className="text-gray-400">Rating</p>
+            <p className="text-white font-semibold">{profile.rating}</p>
           </div>
         </div>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-gray-400">Wins</p>
+            <p className="text-green-500 font-semibold">{profile.wins}</p>
+          </div>
+          <div>
+            <p className="text-gray-400">Losses</p>
+            <p className="text-red-500 font-semibold">{profile.losses}</p>
+          </div>
+          <div>
+            <p className="text-gray-400">Draws</p>
+            <p className="text-gray-500 font-semibold">{profile.draws}</p>
+          </div>
+        </div>
+        <div className="mt-6">
+          <form onSubmit={handleUpdateUsername} className="flex gap-2">
+            <input
+              type="text"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              placeholder="New username"
+              className="flex-1 bg-[#0e141b] rounded-lg px-3 py-2"
+            />
+            <button type="submit" className="btn bg-blue-600 hover:bg-blue-700">Update</button>
+          </form>
+        </div>
       </div>
-    </>
-  )
+    </PageWithHeader>
+  );
 }
