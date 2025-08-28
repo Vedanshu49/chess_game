@@ -260,6 +260,15 @@ export default function GamePage() {
                 <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
               </>
             )}
+
+            {game?.invite_code && game?.players_joined < 2 && (
+              <div className="text-center bg-blue-800 p-2 rounded-md">
+                <p className="text-white font-semibold">Invite Code:</p>
+                <p className="text-3xl font-bold text-yellow-300">{game.invite_code}</p>
+                <p className="text-sm text-gray-300">Share this code with your friend!</p>
+              </div>
+            )}
+
             <CapturedPieces captured={capturedPieces.b} color="white" />
             <CapturedPieces captured={capturedPieces.w} color="black" />
             <MoveList history={history} />
