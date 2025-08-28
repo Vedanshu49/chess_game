@@ -30,28 +30,11 @@ export default function Dashboard() {
   }, [user, loading, router]);
 
   async function handleCreateLocalGame() {
-    if (!user || !user.id) { toast.error("You must be logged in to create a game."); return; }
-    setSearching(true);
-    const { data, error } = await supabase
-      .from('games')
-      .insert({
-        status: 'local',
-        creator: user.id,
-        opponent: user.id,
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        initial_time_seconds: 600,
-        white_time_left: 600,
-        black_time_left: 600,
-      })
-      .select()
-      .single();
-    setSearching(false);
-    if (error) {
-      toast.error('Error creating game: ' + error.message);
-      return;
-    }
-    if (data) {
-      router.push(`/game/${data.id}`);
+    try {
+      router.push('/local-game');
+    } catch (error) {
+      console.error("Error navigating to local game:", error);
+      toast.error("Failed to start local game.");
     }
   }
 
@@ -59,26 +42,33 @@ export default function Dashboard() {
     if (!user || !user.id) { toast.error("You must be logged in to create a game."); return; }
     setSearching(true);
     const inviteCode = generateInviteCode();
-    const { data, error } = await supabase
-      .from('games')
-      .insert({
-        status: 'waiting',
-        invite_code: inviteCode,
-        creator: user.id,
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        initial_time_seconds: 600,
-        white_time_left: 600,
-        black_time_left: 600,
-      })
-      .select()
-      .single();
-    setSearching(false);
-    if (error) {
-      toast.error('Error creating game: ' + error.message);
-      return;
-    }
-    if (data) {
-      router.push(`/game/${data.id}`);
+    try {
+      const { data, error } = await supabase
+        .from('games')
+        .insert({
+          status: 'waiting',
+          invite_code: inviteCode,
+          creator: user.id,
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+          initial_time_seconds: 600,
+          white_time_left: 600,
+          black_time_left: 600,
+          players_joined: 1, // New field
+        })
+        .select()
+        .single();
+      setSearching(false);
+      if (error) {
+        toast.error('Error creating game: ' + error.message);
+        return;
+      }
+      if (data) {
+        router.push(`/game/${data.id}`);
+      }
+    } catch (error) {
+      console.error("Error in handleCreateCodeGame:", error);
+      toast.error("An unexpected error occurred while creating private game.");
+      setSearching(false);
     }
   }
 
@@ -86,57 +76,64 @@ export default function Dashboard() {
     if (!user || !user.id) { toast.error("You must be logged in to play online."); return; }
     setSearching(true);
 
-    const { data: waitingGame, error: findError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('status', 'waiting')
-      .is('opponent', null)
-      .is('invite_code', null)
-      .neq('creator', user.id)
-      .limit(1)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      setSearching(false);
-      toast.error('Error finding game: ' + findError.message);
-      return;
-    }
-
-    if (waitingGame) {
-      const { error: updateError } = await supabase
+    try {
+      const { data: waitingGame, error: findError } = await supabase
         .from('games')
-        .update({ opponent: user.id, status: 'in_progress' })
-        .eq('id', waitingGame.id);
-      setSearching(false);
-      if (updateError) {
-        toast.error('Error joining game: ' + updateError.message);
-        return;
-      }
-      router.push(`/game/${waitingGame.id}`);
-    } else {
-      const { data: newGame, error: createError } = await supabase
-        .from('games')
-        .insert({
-          status: 'waiting',
-          creator: user.id,
-          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-          initial_time_seconds: 600,
-          white_time_left: 600,
-          black_time_left: 600,
-        })
-        .select()
+        .select('*')
+        .eq('status', 'waiting')
+        .is('opponent', null)
+        .is('invite_code', null)
+        .neq('creator', user.id)
+        .limit(1)
         .single();
 
-      if (createError) {
+      if (findError && findError.code !== 'PGRST116') {
         setSearching(false);
-        toast.error('Error creating game: ' + createError.message);
+        toast.error('Error finding game: ' + findError.message);
         return;
       }
 
-      if (newGame) {
-        setSearchingGameId(newGame.id);
-        // Don't redirect here, wait for someone to join
+      if (waitingGame) {
+        const { error: updateError } = await supabase
+          .from('games')
+          .update({ opponent: user.id, status: 'in_progress', players_joined: 2 }) // Update players_joined
+          .eq('id', waitingGame.id);
+        setSearching(false);
+        if (updateError) {
+          toast.error('Error joining game: ' + updateError.message);
+          return;
+        }
+        router.push(`/game/${waitingGame.id}`);
+      } else {
+        const { data: newGame, error: createError } = await supabase
+          .from('games')
+          .insert({
+            status: 'waiting',
+            creator: user.id,
+            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            initial_time_seconds: 600,
+            white_time_left: 600,
+            black_time_left: 600,
+            players_joined: 1, // New field
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          setSearching(false);
+          toast.error('Error creating game: ' + createError.message);
+          return;
+        }
+
+        if (newGame) {
+          setSearchingGameId(newGame.id);
+          // Don't redirect here, wait for someone to join
+        }
       }
+    } catch (error) {
+      console.error("Error in handlePlayOnline:", error);
+      toast.error("An unexpected error occurred while playing online.");
+      setSearching(false);
     }
   }
 

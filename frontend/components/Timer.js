@@ -7,7 +7,7 @@ export default function Timer({ initialTime, isRunning }) {
     let interval = null;
     if (isRunning) {
       interval = setInterval(() => {
-        setTime(time => (time > 0 ? time - 1 : 0));
+        setTime(time => (time > 0 ? Math.floor(time - 1) : 0));
       }, 1000);
     } else {
       clearInterval(interval);

@@ -74,30 +74,36 @@ export default function GamePage() {
   const loadGame = useCallback(async (session) => {
     if (!gameId) return;
 
-    const { data: gameData, error } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
+    try {
+      const { data: gameData, error } = await supabase
+        .from('games')
+        .select('*, players_joined') // Include players_joined
+        .eq('id', gameId)
+        .single();
 
-    if (error || !gameData) {
-      toast.error('Game not found or an error occurred.');
+      if (error || !gameData) {
+        toast.error('Game not found or an error occurred.');
+        router.replace('/dashboard');
+        return;
+      }
+
+      setGame(gameData);
+      setFen(gameData.fen);
+      setCapturedPieces(calculateCapturedPieces(gameData.fen));
+      setWhiteTime(gameData.white_time_left);
+      setBlackTime(gameData.black_time_left);
+      setLastMoveTime(new Date(gameData.last_move_at).getTime());
+
+      if (chess) {
+        chess.load(gameData.fen);
+        setHistory(chess.history());
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading game:", error);
+      toast.error("Failed to load game data.");
       router.replace('/dashboard');
-      return;
     }
-
-    setGame(gameData);
-    setFen(gameData.fen);
-    setCapturedPieces(calculateCapturedPieces(gameData.fen));
-    setWhiteTime(gameData.white_time_left);
-    setBlackTime(gameData.black_time_left);
-    setLastMoveTime(new Date(gameData.last_move_at).getTime());
-
-    if (chess) {
-      chess.load(gameData.fen);
-      setHistory(chess.history());
-    }
-    setLoading(false);
   }, [gameId, router, chess]);
 
   useEffect(() => {
@@ -165,8 +171,8 @@ export default function GamePage() {
       const newHistory = chess.history();
       const moveTime = Date.now();
       const timeDiff = (moveTime - lastMoveTime) / 1000;
-      const newWhiteTime = chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime;
-      const newBlackTime = chess.turn() === 'w' ? blackTime - timeDiff : blackTime;
+      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
+      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
 
       setFen(newFen);
       setCapturedPieces(calculateCapturedPieces(newFen));
@@ -203,15 +209,20 @@ export default function GamePage() {
 
     if (window.confirm('Are you sure you want to resign?')) {
       const winner = game.creator === user.id ? game.opponent : game.creator;
-      const { error } = await supabase
-        .from('games')
-        .update({ status: 'finished', winner: winner })
-        .eq('id', gameId);
+      try {
+        const { error } = await supabase
+          .from('games')
+          .update({ status: 'finished', winner: winner })
+          .eq('id', gameId);
 
-      if (error) {
-        toast.error('Error resigning: ' + error.message);
-      } else {
-        toast.success('You have resigned. The opponent wins.');
+        if (error) {
+          toast.error('Error resigning: ' + error.message);
+        } else {
+          toast.success('You have resigned. The opponent wins.');
+        }
+      } catch (error) {
+        console.error("Error resigning:", error);
+        toast.error("An unexpected error occurred during resignation.");
       }
     }
   };
@@ -240,8 +251,16 @@ export default function GamePage() {
         <div className="w-full lg:w-96 bg-gray-900 p-4 rounded-lg mt-4 lg:mt-0 lg:ml-4 flex-shrink-0">
           <h2 className="text-2xl font-bold mb-4">Game Info</h2>
           <div className="space-y-4">
-            <Timer initialTime={whiteTime} isRunning={chess.turn() === 'w'} />
-            <Timer initialTime={blackTime} isRunning={chess.turn() === 'b'} />
+            {game?.players_joined < 2 ? (
+              <div className="text-center text-lg font-semibold text-yellow-400">
+                Waiting for opponent...
+              </div>
+            ) : (
+              <> 
+                <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
+                <Timer initialTime={blackTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'b'} />
+              </>
+            )}
             <CapturedPieces captured={capturedPieces.b} color="white" />
             <CapturedPieces captured={capturedPieces.w} color="black" />
             <MoveList history={history} />
