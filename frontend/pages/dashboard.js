@@ -57,7 +57,6 @@ export default function Dashboard() {
         })
         .select()
         .single();
-      setSearching(false);
       if (error) {
         toast.error('Error creating game: ' + error.message);
         return;
@@ -68,6 +67,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error in handleCreateCodeGame:", error);
       toast.error("An unexpected error occurred while creating private game.");
+    } finally { // Moved setSearching(false) here
       setSearching(false);
     }
   }
@@ -172,7 +172,7 @@ export default function Dashboard() {
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold">Chess App</h1>
           <div className="text-xs text-gray-400 mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
-        </div>
+          </div>
         <h2 className="text-2xl font-bold mb-6">Welcome, {(user.profile && user.profile.username) ? user.profile.username : user.email}</h2>
         <button className="btn mb-8" onClick={() => setShowStartModal(true)}>Start Game</button>
         {showStartModal && (

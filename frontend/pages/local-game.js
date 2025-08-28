@@ -79,7 +79,6 @@ export default function LocalGamePage() {
       const move = chess.move({
         from: sourceSquare,
         to: targetSquare,
-        promotion: 'q',
       });
 
       if (move === null) {
@@ -152,7 +151,6 @@ export default function LocalGamePage() {
 
   return (
     <>
-      <Toaster position="bottom-center" />
       <Navbar />
       <div className="min-h-screen bg-black text-white p-4 flex flex-col lg:flex-row items-center lg:items-start justify-center">
         <div className="w-full lg:w-auto flex justify-center items-center p-2 lg:flex-grow">

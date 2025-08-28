@@ -10,47 +10,59 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     async function loadUserAndProfile() {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        if (session) {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        if (error) {
-          console.error("Error fetching profile:", error);
-          setUser(session.user); // Still set auth user even if profile fetch fails
+          if (error) {
+            console.error("Error fetching profile:", error);
+            setUser(session.user); // Still set auth user even if profile fetch fails
+          } else {
+            setUser({ ...session.user, profile }); // Combine auth user and profile
+          }
         } else {
-          setUser({ ...session.user, profile }); // Combine auth user and profile
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (error) {
+        console.error("Error loading user session:", error);
+        setUser(null); // Ensure user is null on error
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     loadUserAndProfile();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+      try {
+        if (session) {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        if (error) {
-          console.error("Error fetching profile on auth state change:", error);
-          setUser(session.user);
+          if (error) {
+            console.error("Error fetching profile on auth state change:", error);
+            setUser(session.user);
+          } else {
+            setUser({ ...session.user, profile });
+          }
         } else {
-          setUser({ ...session.user, profile });
+          setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error("Error during auth state change:", error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => listener.subscription.unsubscribe();

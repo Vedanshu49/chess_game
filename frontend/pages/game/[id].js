@@ -240,7 +240,6 @@ export default function GamePage() {
 
   return (
     <>
-      <Toaster position="bottom-center" />
       <Navbar />
       <div className="min-h-screen bg-black text-white p-4 flex flex-col lg:flex-row items-center lg:items-start justify-center">
         <div className="w-full lg:w-auto flex justify-center items-center p-2 lg:flex-grow">
@@ -257,8 +256,8 @@ export default function GamePage() {
               </div>
             ) : (
               <> 
-                <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
                 <Timer initialTime={blackTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'b'} />
+                <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
               </>
             )}
             <CapturedPieces captured={capturedPieces.b} color="white" />

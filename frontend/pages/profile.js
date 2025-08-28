@@ -70,7 +70,10 @@ export default function ProfilePage() {
         .from('profiles')
         .update({ username: newUsername.trim() })
         .eq('id', user.id);
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update username error:', error);
+        throw error;
+      }
       setProfile({ ...profile, username: newUsername.trim() });
       setNewUsername('');
       toast.success('Username updated!');

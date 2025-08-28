@@ -7,8 +7,18 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        toast.error('Logout failed: ' + error.message);
+        console.error('Logout error:', error);
+      } else {
+        router.replace("/login");
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred during logout.');
+      console.error('Unexpected logout error:', error);
+    }
   };
 
   return (
