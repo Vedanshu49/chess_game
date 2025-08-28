@@ -11,35 +11,45 @@ export default function SpectatePage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (!user) {
       router.replace('/login');
-    } else if (user) {
-      fetchGames();
+      return;
     }
+
+    async function fetchGames() {
+      setGamesLoading(true);
+      const { data, error } = await supabase
+        .from('games')
+        .select(`
+          id,
+          creatorProfile:creator ( username ),
+          opponentProfile:opponent ( username )
+        `)
+        .filter('status', 'in', '("in_progress","paused")')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching games:', error);
+        setGames([]);
+      } else {
+        setGames(data);
+      }
+      setGamesLoading(false);
+    }
+
+    fetchGames();
   }, [user, loading, router]);
 
-  async function fetchGames() {
-    setGamesLoading(true)
-    const { data, error } = await supabase
-      .from('games')
-      .select(`
-        id,
-        creatorProfile:creator ( username ),
-        opponentProfile:opponent ( username )
-      `)
-      .eq('status', 'in_progress')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching games:', error)
-    } else {
-      setGames(data)
-    }
-    setGamesLoading(false)
-  }
-
-  if (loading || gamesLoading) { // Display loading from AuthProvider or games fetching
-    return <p>Loading...</p>
+  if (loading || gamesLoading) {
+    return (
+      <>
+        <NavBar user={user} />
+        <div className="container mx-auto p-4">
+          <p>Loading games...</p>
+        </div>
+      </>
+    );
   }
 
   return (
@@ -54,23 +64,27 @@ export default function SpectatePage() {
         </button>
         <h1 className="text-2xl font-bold mb-4">Spectate Games</h1>
         <div className="bg-[#1c2836] rounded-lg shadow-lg">
-          <ul className="divide-y divide-[#233041]">
-            {games.map(game => (
-              <li key={game.id} className="p-4 flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">
-                    {game.creatorProfile.username} vs {game.opponentProfile.username}
-                  </p>
-                </div>
-                <button
-                  onClick={() => router.push(`/game/${game.id}?spectate=true`)}
-                  className="btn bg-blue-600 hover:bg-blue-700"
-                >
-                  Watch
-                </button>
-              </li>
-            ))}
-          </ul>
+          {games.length > 0 ? (
+            <ul className="divide-y divide-[#233041]">
+              {games.map(game => (
+                <li key={game.id} className="p-4 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">
+                      {game.creatorProfile?.username || 'Player 1'} vs {game.opponentProfile?.username || 'Player 2'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/game/${game.id}?spectate=true`)}
+                    className="btn bg-blue-600 hover:bg-blue-700"
+                  >
+                    Watch
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="p-4 text-center">No active games to spectate.</p>
+          )}
         </div>
       </div>
     </>

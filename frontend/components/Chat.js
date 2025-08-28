@@ -31,11 +31,26 @@ export default function Chat({ gameId, user }) {
 
     fetchMessages();
 
+    const handleNewMessage = async (payload) => {
+      const newMessage = payload.new;
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', newMessage.user_id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile for new message:', error);
+        newMessage.profile = null;
+      } else {
+        newMessage.profile = profile;
+      }
+      setMessages(currentMessages => [...currentMessages, newMessage]);
+    };
+
     const channel = supabase
       .channel(`chat:${gameId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `game_id=eq.${gameId}` }, (payload) => {
-        setMessages(messages => [...messages, payload.new]);
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `game_id=eq.${gameId}` }, handleNewMessage)
       .subscribe();
 
     return () => {
@@ -64,7 +79,7 @@ export default function Chat({ gameId, user }) {
       <div className="h-48 overflow-y-auto mb-4 p-2 bg-gray-900 rounded-md">
         {messages.map(msg => (
           <div key={msg.id} className="text-sm text-gray-300 mb-1">
-            <span className="font-semibold text-blue-400">{msg.profile.username || 'User'}:</span> {msg.message}
+            <span className="font-semibold text-blue-400">{msg.profile?.username || 'User'}:</span> {msg.message}
           </div>
         ))}
         <div ref={messagesEndRef} />
