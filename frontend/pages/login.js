@@ -15,15 +15,10 @@ export default function Login() {
     setLoading(true); // Set loading to true
 
     try {
-      const { data, error: authError } = await Promise.race([ // Race with a timeout
-        supabase.auth.signInWithPassword({
-          email,
-          password,
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Login request timed out.")), 10000) // 10 seconds timeout
-        ),
-      ]);
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (authError) {
         console.error("Supabase login error:", authError);
@@ -32,14 +27,15 @@ export default function Login() {
         console.log("Login successful, user:", data.user);
         router.replace("/dashboard");
       } else {
+        // This case should ideally not be reached if Supabase client works as expected
         console.warn("Login did not return user data or explicit error.");
         setError("Login failed. Please check your credentials.");
       }
     } catch (err) {
-      console.error("Unexpected login error:", err);
+      console.error("Unexpected login error (caught by outer try-catch):", err);
       setError(err.message || "An unexpected error occurred during login.");
     } finally {
-      setLoading(false); // Always clear loading state
+      setLoading(false);
     }
   };
 
