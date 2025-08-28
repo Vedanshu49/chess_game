@@ -144,6 +144,39 @@ export default function GamePage() {
     };
   }, [gameId, chess]);
 
+  // Navigation Guard
+  useEffect(() => {
+    const warnBeforeLeaving = (e) => {
+      if (game && game.status === 'in_progress') {
+        const confirmationMessage = 'You have an active game. Are you sure you want to leave?';
+        e.returnValue = confirmationMessage; // Standard for browser confirmation
+        return confirmationMessage; // For some older browsers
+      }
+    };
+
+    const handleRouteChangeStart = (url) => {
+      if (game && game.status === 'in_progress') {
+        // If the user is trying to navigate away from the game page
+        // and the game is in progress, show a confirmation.
+        // This will prevent navigation if the user cancels the confirm.
+        if (!window.confirm('You have an active game. Are you sure you want to leave?')) {
+          router.events.emit('routeChangeError'); // Prevent route change
+          throw 'routeChange aborted.'; // Throw to stop the navigation
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    router.events.on('routeChangeStart', handleRouteChangeStart);
+
+    // Clean up event listeners on component unmount
+    return () => {
+      window.removeEventListener('beforeunload', warnBeforeLeaving);
+      router.events.off('routeChangeStart', handleRouteChangeStart);
+    };
+  }, [game, router]); // Depend on 'game' to react to status changes, and 'router'
+
   const handleMove = async ({ sourceSquare, targetSquare }) => {
     if (!chess || !game || !user) return;
 

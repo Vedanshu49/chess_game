@@ -23,6 +23,30 @@ export default function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [searchingGameId, setSearchingGameId] = useState(null);
 
+  // Real-time listener for game status updates
+  useEffect(() => {
+    let gameChannel = null;
+
+    if (searchingGameId) {
+      gameChannel = supabase
+        .channel(`game_lobby:${searchingGameId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${searchingGameId}` }, (payload) => {
+          const updatedGame = payload.new;
+          if (updatedGame.status === 'in_progress' && updatedGame.players_joined === 2) {
+            toast.success('Opponent found! Joining game...');
+            router.push(`/game/${updatedGame.id}`);
+          }
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (gameChannel) {
+        supabase.removeChannel(gameChannel);
+      }
+    };
+  }, [searchingGameId, router]);
+
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
@@ -62,12 +86,13 @@ export default function Dashboard() {
         return;
       }
       if (data) {
-        router.push(`/game/${data.id}`);
+        setSearchingGameId(data.id); // Set game ID, let useEffect handle redirect
+        toast.success(`Private game created! Share code: ${data.invite_code}`); // Show code here
       }
     } catch (error) {
       console.error("Error in handleCreateCodeGame:", error);
       toast.error("An unexpected error occurred while creating private game.");
-    } finally { // Moved setSearching(false) here
+    } finally {
       setSearching(false);
     }
   }
@@ -79,7 +104,7 @@ export default function Dashboard() {
     try {
       const { data: waitingGame, error: findError } = await supabase
         .from('games')
-        .select('*')
+        .select('id, status, players_joined') // Select only necessary fields
         .eq('status', 'waiting')
         .is('opponent', null)
         .is('invite_code', null)
@@ -87,24 +112,28 @@ export default function Dashboard() {
         .limit(1)
         .single();
 
-      if (findError && findError.code !== 'PGRST116') {
+      if (findError && findError.code !== 'PGRST116') { // PGRST116 means no rows found
         setSearching(false);
         toast.error('Error finding game: ' + findError.message);
         return;
       }
 
       if (waitingGame) {
+        // Found a game, try to join it
         const { error: updateError } = await supabase
           .from('games')
           .update({ opponent: user.id, status: 'in_progress', players_joined: 2 }) // Update players_joined
           .eq('id', waitingGame.id);
-        setSearching(false);
+        
         if (updateError) {
           toast.error('Error joining game: ' + updateError.message);
+          setSearching(false);
           return;
         }
-        router.push(`/game/${waitingGame.id}`);
+        setSearchingGameId(waitingGame.id); // Set game ID, let useEffect handle redirect
+        toast.success('Joined a game! Waiting for it to start...');
       } else {
+        // No game found, create a new one
         const { data: newGame, error: createError } = await supabase
           .from('games')
           .insert({
@@ -114,39 +143,49 @@ export default function Dashboard() {
             initial_time_seconds: 600,
             white_time_left: 600,
             black_time_left: 600,
-            players_joined: 1, // New field
+            players_joined: 1,
           })
-          .select()
+          .select('id') // Select only ID
           .single();
 
         if (createError) {
-          setSearching(false);
           toast.error('Error creating game: ' + createError.message);
+          setSearching(false);
           return;
         }
 
         if (newGame) {
           setSearchingGameId(newGame.id);
-          // Don't redirect here, wait for someone to join
+          toast('Searching for an opponent...');
         }
       }
     } catch (error) {
       console.error("Error in handlePlayOnline:", error);
       toast.error("An unexpected error occurred while playing online.");
-      setSearching(false);
+    } finally {
+      setSearching(false); // Ensure searching state is cleared
     }
   }
 
   async function handleCancelSearch() {
     if (!searchingGameId) return;
     setSearching(false);
+    // Unsubscribe from the channel before deleting the game
+    supabase.removeChannel(`game_lobby:${searchingGameId}`);
     setSearchingGameId(null);
-    const { error } = await supabase
-      .from('games')
-      .delete()
-      .eq('id', searchingGameId);
-    if (error) {
-      toast.error('Error cancelling search: ' + error.message);
+    try {
+      const { error } = await supabase
+        .from('games')
+        .delete()
+        .eq('id', searchingGameId);
+      if (error) {
+        toast.error('Error cancelling search: ' + error.message);
+      } else {
+        toast.success('Search cancelled.');
+      }
+    } catch (error) {
+      console.error("Error in handleCancelSearch:", error);
+      toast.error("An unexpected error occurred while cancelling search.");
     }
   }
 
