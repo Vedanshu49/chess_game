@@ -1,4 +1,5 @@
 import dynamic from 'next/dynamic';
+import { useState, useEffect, useRef } from 'react';
 
 const Chessboard = dynamic(() => import('chessboardjsx'), {
   ssr: false,
@@ -6,20 +7,36 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 });
 
 export default function LocalChessboard({ fen, onMove }) {
-  // The width of the board is responsive, taking full width of its container.
-  // The aspect ratio is maintained by the container in the GamePage.
+  const boardRef = useRef(null);
+  const [boardWidth, setBoardWidth] = useState(0);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (boardRef.current) {
+        setBoardWidth(boardRef.current.offsetWidth);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Set initial width
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <div className="w-full h-full">
-      <Chessboard
-        position={fen}
-        onDrop={onMove}
-        draggable={true}
-        width="100%"
-        boardStyle={{
-          borderRadius: '5px',
-          boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,
-        }}
-      />
+    <div ref={boardRef} className="w-full h-full">
+      {boardWidth > 0 && (
+        <Chessboard
+          position={fen}
+          onDrop={onMove}
+          draggable={true}
+          width={boardWidth}
+          boardStyle={{
+            borderRadius: '5px',
+            boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,
+          }}
+        />
+      )}
     </div>
   );
 }
