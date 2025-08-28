@@ -7,20 +7,39 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false); // New loading state
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true); // Set loading to true
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error: authError } = await Promise.race([ // Race with a timeout
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Login request timed out.")), 10000) // 10 seconds timeout
+        ),
+      ]);
 
-    if (error) {
-      setError(error.message);
-    } else {
-      router.replace("/dashboard");
+      if (authError) {
+        console.error("Supabase login error:", authError);
+        setError(authError.message);
+      } else if (data && data.user) {
+        console.log("Login successful, user:", data.user);
+        router.replace("/dashboard");
+      } else {
+        console.warn("Login did not return user data or explicit error.");
+        setError("Login failed. Please check your credentials.");
+      }
+    } catch (err) {
+      console.error("Unexpected login error:", err);
+      setError(err.message || "An unexpected error occurred during login.");
+    } finally {
+      setLoading(false); // Always clear loading state
     }
   };
 
@@ -53,8 +72,9 @@ export default function Login() {
           <button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-semibold transition"
+            disabled={loading} // Disable button while loading
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
