@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabasejs";
 import Navbar from "../components/NavBar";
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthProvider'; // Import useAuth
 
 function generateInviteCode(length = 6) {
@@ -169,7 +169,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <Toaster position="bottom-center" />
       <Navbar />
       <div className="min-h-screen bg-black text-white p-10 flex flex-col items-center justify-start">
         <div className="mb-8 text-center">
