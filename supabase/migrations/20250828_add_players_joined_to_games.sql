@@ -1,0 +1,2 @@
+ALTER TABLE games
+ADD COLUMN players_joined INTEGER DEFAULT 1;
