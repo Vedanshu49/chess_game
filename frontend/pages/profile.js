@@ -133,6 +133,8 @@ export default function ProfilePage() {
           <form onSubmit={handleUpdateUsername} className="flex gap-2">
             <input
               type="text"
+              name="username"
+              autocomplete="username"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               placeholder="New username"

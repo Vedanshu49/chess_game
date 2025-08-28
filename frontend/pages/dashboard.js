@@ -245,6 +245,8 @@ export default function Dashboard() {
                   placeholder="Enter code to join"
                   value={joinCode}
                   onChange={e => setJoinCode(e.target.value)}
+                  name="joinCode"
+                  autocomplete="off"
                 />
                 <button className="btn" onClick={() => {
                   if (joinCode) router.push(`/join/${joinCode}`);

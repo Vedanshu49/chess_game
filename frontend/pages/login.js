@@ -31,6 +31,8 @@ export default function Login() {
         <form onSubmit={handleLogin} className="space-y-4">
           <input
             type="email"
+            name="email"
+            autocomplete="email"
             placeholder="Email Address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -39,6 +41,8 @@ export default function Login() {
           />
           <input
             type="password"
+            name="password"
+            autocomplete="current-password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
