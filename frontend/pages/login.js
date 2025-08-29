@@ -20,6 +20,8 @@ export default function Login() {
         password,
       });
 
+      console.log("Supabase signInWithPassword promise resolved.");
+
       if (authError) {
         console.error("Supabase login error:", authError);
         setError(authError.message);
