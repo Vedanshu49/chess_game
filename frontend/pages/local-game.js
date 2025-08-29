@@ -114,28 +114,42 @@ export default function LocalGamePage() {
   const handleMove = async ({ sourceSquare, targetSquare }) => {
     if (!chess || gameStatus !== 'in_progress') return;
 
-    try {
-      // Temporarily make the move to check for promotion
-      const tempMove = chess.move({
-        from: sourceSquare,
-        to: targetSquare,
-      });
+    const piece = chess.get(sourceSquare);
+    const targetRank = targetSquare[1];
+    const isPawn = piece && piece.type === 'p';
+    const isPromotionRank = (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
+
+    // Check for promotion scenario first
+    if (isPawn && isPromotionRank) {
+      let tempMove = null;
+      try {
+        tempMove = chess.move({ from: sourceSquare, to: targetSquare });
+        chess.undo(); // Undo the temporary move
+      } catch (e) {
+        // This catch block is for chess.js errors, not invalid moves
+      }
 
       if (tempMove === null) {
-        toast.error('Invalid move!');
+        // Promotion is required
+        setPendingPromotionMove({ sourceSquare, targetSquare });
+        setShowPromotionModal(true);
+        return; // Stop handleMove here, wait for promotion selection
+      }
+    }
+
+    // If not a promotion, or if it's a promotion that doesn't require a choice (e.g., only one legal promotion)
+    try {
+      const move = chess.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: 'q', // Default to queen if not a promotion requiring choice
+      });
+
+      if (move === null) {
+        toast.error('Invalid move! Please check piece movement rules, blocked paths, or if your King is in check.');
         return;
       }
 
-      // Check if the move is a promotion
-      if (tempMove.promotion) {
-        // If it's a promotion, undo the temporary move and show promotion modal
-        chess.undo(); // Undo the temporary move
-        setPendingPromotionMove({ sourceSquare, targetSquare });
-        setShowPromotionModal(true);
-        return; // Exit handleMove, wait for promotion choice
-      }
-
-      // If not a promotion, or promotion already handled, proceed with normal move updates
       const newFen = chess.fen();
       const newHistory = chess.history();
       const moveTime = Date.now();
@@ -236,8 +250,6 @@ export default function LocalGamePage() {
   };
 
   const handleResign = (playerColor) => {
-
-  const handleResign = (playerColor) => {
     if (window.confirm(`Are you sure you want to resign?`)) {
       setGameStatus('resigned');
       toast.success(`${playerColor === 'white' ? 'White' : 'Black'} resigned. ${playerColor === 'white' ? 'Black' : 'White'} wins!`);
@@ -317,6 +329,12 @@ export default function LocalGamePage() {
           </div>
         </div>
       </div>
+      {showPromotionModal && pendingPromotionMove && (
+        <PromotionModal
+          onSelectPromotion={handlePromotion}
+          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
+        />
+      )}
     </>
   );
 }
