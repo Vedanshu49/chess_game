@@ -14,7 +14,7 @@ import PromotionModal from "../../components/PromotionModal";
 import GameSkeleton from "../../components/GameSkeleton";
 import { calculateCapturedPieces } from "../../lib/utils";
 
-import Chessboard from '../../components/LocalChessboard';
+const Chessboard = dynamic(() => import('../../components/LocalChessboard'), { ssr: false });
 
 
 

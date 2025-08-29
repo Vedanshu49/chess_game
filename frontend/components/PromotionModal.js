@@ -3,25 +3,44 @@ import React from 'react';
 export default function PromotionModal({ onSelectPromotion, color }) {
   const pieces = ['q', 'r', 'b', 'n']; // Queen, Rook, Bishop, Knight
 
+  // Defensive: fallback if handler is missing
+  const handleClick = (piece) => {
+    console.log('Promotion piece selected:', piece);
+    if (typeof onSelectPromotion === 'function') {
+      onSelectPromotion(piece);
+    } else {
+      alert('Promotion handler missing!');
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-      <div className="bg-panel p-6 rounded-lg shadow-lg text-text text-center">
-        <h3 className="text-xl font-bold mb-4">Promote Pawn to:</h3>
-        <div className="flex justify-center space-x-4">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[9999]"
+      style={{ pointerEvents: 'auto' }}
+      tabIndex={0}
+      aria-modal="true"
+      role="dialog"
+    >
+      <div className="bg-panel p-8 rounded-xl shadow-2xl text-text text-center relative min-w-[300px]">
+        <h3 className="text-2xl font-bold mb-6">Promote Pawn to:</h3>
+        <div className="flex justify-center gap-6">
           {pieces.map(piece => (
             <button
               key={piece}
-              className="p-3 bg-[#222222] hover:bg-muted rounded-md transition-colors"
-              onClick={() => onSelectPromotion(piece)}
+              className="p-3 bg-[#222222] hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              onClick={() => handleClick(piece)}
+              tabIndex={0}
+              aria-label={`Promote to ${piece}`}
             >
               <img
                 src={`/pieces/${color === 'w' ? 'white' : 'black'}_${piece}.svg`}
                 alt={piece}
-                className="w-12 h-12"
+                className="w-14 h-14 pointer-events-none"
               />
             </button>
           ))}
         </div>
+        <p className="mt-4 text-muted text-sm">Click a piece to promote your pawn.</p>
       </div>
     </div>
   );
