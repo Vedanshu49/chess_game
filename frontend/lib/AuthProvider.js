@@ -26,6 +26,22 @@ export function AuthProvider({ children }) {
           // No valid session: clear all browser storage and cookies, redirect to login
           setUser(null);
           if (typeof window !== "undefined") {
+            // Prevent redirect loop on login page
+            if (window.location.pathname !== "/login") {
+              localStorage.clear();
+              sessionStorage.clear();
+              document.cookie.split(';').forEach((c) => {
+                document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+              });
+              window.location.replace("/login");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error in getSession:", e);
+        setUser(null);
+        if (typeof window !== "undefined") {
+          if (window.location.pathname !== "/login") {
             localStorage.clear();
             sessionStorage.clear();
             document.cookie.split(';').forEach((c) => {
@@ -33,17 +49,6 @@ export function AuthProvider({ children }) {
             });
             window.location.replace("/login");
           }
-        }
-      } catch (e) {
-        console.error("Error in getSession:", e);
-        setUser(null);
-        if (typeof window !== "undefined") {
-          localStorage.clear();
-          sessionStorage.clear();
-          document.cookie.split(';').forEach((c) => {
-            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
-          });
-          window.location.replace("/login");
         }
       } finally {
         setLoading(false);
@@ -57,12 +62,14 @@ export function AuthProvider({ children }) {
         setUser(null);
         setLoading(false);
         if (typeof window !== "undefined") {
-          localStorage.clear();
-          sessionStorage.clear();
-          document.cookie.split(';').forEach((c) => {
-            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
-          });
-          window.location.replace("/login");
+          if (window.location.pathname !== "/login") {
+            localStorage.clear();
+            sessionStorage.clear();
+            document.cookie.split(';').forEach((c) => {
+              document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+            });
+            window.location.replace("/login");
+          }
         }
       }
     }, 10000);
@@ -85,12 +92,14 @@ export function AuthProvider({ children }) {
       } else {
         setUser(null);
         if (typeof window !== "undefined") {
-          localStorage.clear();
-          sessionStorage.clear();
-          document.cookie.split(';').forEach((c) => {
-            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
-          });
-          window.location.replace("/login");
+          if (window.location.pathname !== "/login") {
+            localStorage.clear();
+            sessionStorage.clear();
+            document.cookie.split(';').forEach((c) => {
+              document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+            });
+            window.location.replace("/login");
+          }
         }
       }
     });
