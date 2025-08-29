@@ -8,6 +8,31 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 });
 
 export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
+  // Standard starting FEN
+  const standardFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+  // FEN validation for 8x8 board
+  function isValidFen(fen) {
+    if (!fen) return false;
+    const rows = fen.split(' ')[0].split('/');
+    if (rows.length !== 8) return false;
+    for (const row of rows) {
+      let count = 0;
+      for (const char of row) {
+        if (/[1-8]/.test(char)) count += parseInt(char);
+        else count += 1;
+      }
+      if (count !== 8) return false;
+    }
+    return true;
+  }
+
+  // Use fallback FEN if invalid
+  const safeFen = isValidFen(fen) ? fen : standardFEN;
+
+  if (!isValidFen(fen)) {
+    return <div className="text-center text-red-500">Invalid board state detected. Please contact support.</div>;
+  }
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [legalMoves, setLegalMoves] = useState([]);
 
@@ -68,7 +93,7 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
   return (
     <div className="w-full h-full">
       <Chessboard
-        position={fen}
+        position={safeFen}
         onDrop={onMove}
         onSquareClick={handleSquareClick}
         draggable={true}

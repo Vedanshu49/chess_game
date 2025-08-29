@@ -111,17 +111,25 @@ export default function GamePage() {
                 return;
             }
 
-            setGame(gameData);
-            try {
-                if (!isValidFen(gameData.fen)) throw new Error('Invalid FEN');
-                chess.load(gameData.fen);
-                setFen(gameData.fen);
-                setHistory(chess.history({ verbose: true }));
-                setCapturedPieces(calculateCapturedPieces(gameData.fen));
-                setFenError(null);
-            } catch (e) {
-                setFenError('Invalid board state detected. Please contact support.');
-            }
+                        setGame(gameData);
+                        try {
+                                if (!isValidFen(gameData.fen)) {
+                                    console.error('Invalid FEN detected:', gameData.fen);
+                                    setFenError('Invalid board state detected. Please contact support.');
+                                    chess.load('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+                                    setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+                                    setHistory(chess.history({ verbose: true }));
+                                    setCapturedPieces(calculateCapturedPieces('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'));
+                                } else {
+                                    chess.load(gameData.fen);
+                                    setFen(gameData.fen);
+                                    setHistory(chess.history({ verbose: true }));
+                                    setCapturedPieces(calculateCapturedPieces(gameData.fen));
+                                    setFenError(null);
+                                }
+                        } catch (e) {
+                                setFenError('Invalid board state detected. Please contact support.');
+                        }
 
             const userIsCreator = gameData.creator === user.id;
             const userIsOpponent = gameData.opponent === user.id;
