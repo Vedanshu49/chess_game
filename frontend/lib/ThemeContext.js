@@ -37,6 +37,6 @@ export function ThemeProvider({ children }) {
   return (
     <ThemeContext.Provider value={value}>
       {children}
-    </ThemContext.Provider>
+    </ThemeContext.Provider>
   );
 }
