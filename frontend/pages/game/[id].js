@@ -88,6 +88,12 @@ export default function GamePage() {
 
     const [pageLoading, setPageLoading] = useState(true);
 
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
+
     // Initialize chess.js
     useEffect(() => {
         setChess(new Chess());
@@ -343,90 +349,3 @@ export default function GamePage() {
 
     return (
         <>
-            <Navbar />
-            <Toaster position="top-center" />
-            <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row justify-center items-start p-4 gap-6">
-                {/* Left Panel (Player Info) */}
-                <div className="w-full lg:w-64 flex-shrink-0 space-y-4">
-                    <PlayerInfo player={blackPlayer} color="b" isTurn={chess?.turn() === 'b'} />
-                </div>
-
-                {/* Center Panel (Chessboard) */}
-                <div className="flex-grow flex flex-col items-center">
-                    <div className="w-full max-w-[75vh] aspect-square shadow-lg rounded-lg overflow-hidden">
-                        <Chessboard 
-                            fen={fen} 
-                            onMove={handleMove} 
-                            turn={chess?.turn()} 
-                            playerColor={playerColor} 
-                        />
-                    </div>
-                    {/* Show invite code for private games */}
-                    {game?.invite_code && (
-                        <div className="mt-4 text-center p-4 bg-blue-900 rounded-lg">
-                            <h2 className="text-xl font-bold text-blue-300">Invite Code</h2>
-                            <p className="text-blue-200 text-lg font-mono">{game.invite_code}</p>
-                            <p className="text-blue-100">Share this code with your friend to join the game.</p>
-                        </div>
-                    )}
-                    {!bothPlayersJoined && (
-                        <div className="mt-4 text-center p-4 bg-yellow-900 rounded-lg">
-                            <h2 className="text-2xl font-bold text-yellow-300">Waiting for opponent...</h2>
-                            <p className="text-yellow-200">Share the game link or wait for matchmaking.</p>
-                        </div>
-                    )}
-                    {gameOver.over && (
-                        <div className="mt-4 text-center p-4 bg-gray-800 rounded-lg">
-                            <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
-                            <p>
-                                {(() => {
-                                    if (!gameOver.winner) {
-                                        // Draw or stalemate
-                                        if (gameOver.reason === 'draw') return 'Draw!';
-                                        if (gameOver.reason === 'stalemate') return 'Draw by stalemate!';
-                                        if (gameOver.reason === 'repetition') return 'Draw by repetition!';
-                                        if (gameOver.reason === 'insufficient material') return 'Draw by insufficient material!';
-                                        return `Draw by ${gameOver.reason}!`;
-                                    }
-                                    const winnerIsUser = gameOver.winner === user?.id;
-                                    if (gameOver.reason === 'resignation') {
-                                        return winnerIsUser ? 'You win! Opponent resigned.' : 'You lost. You resigned.';
-                                    }
-                                    if (gameOver.reason === 'checkmate') {
-                                        return winnerIsUser ? 'You win by checkmate!' : 'You lost by checkmate.';
-                                    }
-                                    return winnerIsUser
-                                        ? `You win by ${gameOver.reason}!`
-                                        : `You lost by ${gameOver.reason}.`;
-                                })()}
-                            </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Panel (Game Controls & Info) */}
-                <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-4">
-                    <PlayerInfo player={whitePlayer} color="w" isTurn={chess?.turn() === 'w'} />
-                    <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-                        <h2 className="text-xl font-bold mb-2">Moves</h2>
-                        <MoveList history={history} />
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-                        <h2 className="text-xl font-bold mb-2">Chat</h2>
-                        {user && <Chat gameId={gameId} user={user} />} 
-                    </div>
-                    {!gameOver.over && isMyTurn && (
-                        <button className="btn btn-danger w-full" onClick={handleResign}>Resign</button>
-                    )}
-                </div>
-
-            </div>
-            {showPromotionModal && (
-                <PromotionModal 
-                    onSelectPromotion={handlePromotion} 
-                    color={playerColor} 
-                />
-            )}
-        </>
-    );
-}

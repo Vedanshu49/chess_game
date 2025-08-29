@@ -27,7 +27,7 @@ export default function PromotionModal({ onSelectPromotion, color }) {
           {pieces.map(piece => (
             <button
               key={piece}
-              className="p-3 bg-[#222222] hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent"
+              className="p-3 bg-[#222222] hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent flex flex-col items-center"
               onClick={() => handleClick(piece)}
               tabIndex={0}
               aria-label={`Promote to ${piece}`}
@@ -37,6 +37,7 @@ export default function PromotionModal({ onSelectPromotion, color }) {
                 alt={piece}
                 className="w-14 h-14 pointer-events-none"
               />
+              <span className="mt-2 text-sm capitalize">{getPieceName(piece)}</span>
             </button>
           ))}
         </div>
@@ -45,3 +46,13 @@ export default function PromotionModal({ onSelectPromotion, color }) {
     </div>
   );
 }
+
+const getPieceName = (pieceCode) => {
+  switch (pieceCode) {
+    case 'q': return 'Queen';
+    case 'r': return 'Rook';
+    case 'b': return 'Bishop';
+    case 'n': return 'Knight';
+    default: return '';
+  }
+};
