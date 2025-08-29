@@ -6,6 +6,7 @@ import { Chess } from 'chess.js';
 import CapturedPieces from "@/components/CapturedPieces";
 import MoveList from "@/components/MoveList";
 import Timer from "@/components/Timer";
+import PromotionModal from "@/components/PromotionModal";
 
 const LocalChessboard = dynamic(() => import('@/components/LocalChessboard'), { ssr: false });
 
@@ -55,6 +56,8 @@ export default function LocalGamePage() {
   const [blackTime, setBlackTime] = useState(600);
   const [lastMoveTime, setLastMoveTime] = useState(Date.now());
   const [gameStatus, setGameStatus] = useState('in_progress');
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [pendingPromotionMove, setPendingPromotionMove] = useState(null);
 
   useEffect(() => {
     const loadChess = async () => {
@@ -112,16 +115,27 @@ export default function LocalGamePage() {
     if (!chess || gameStatus !== 'in_progress') return;
 
     try {
-      const move = chess.move({
+      // Temporarily make the move to check for promotion
+      const tempMove = chess.move({
         from: sourceSquare,
         to: targetSquare,
       });
 
-      if (move === null) {
+      if (tempMove === null) {
         toast.error('Invalid move!');
         return;
       }
 
+      // Check if the move is a promotion
+      if (tempMove.promotion) {
+        // If it's a promotion, undo the temporary move and show promotion modal
+        chess.undo(); // Undo the temporary move
+        setPendingPromotionMove({ sourceSquare, targetSquare });
+        setShowPromotionModal(true);
+        return; // Exit handleMove, wait for promotion choice
+      }
+
+      // If not a promotion, or promotion already handled, proceed with normal move updates
       const newFen = chess.fen();
       const newHistory = chess.history();
       const moveTime = Date.now();
@@ -160,6 +174,68 @@ export default function LocalGamePage() {
       toast.error('An unexpected error occurred during move.');
     }
   };
+
+  const handlePromotion = (promotionPiece) => {
+    if (!chess || !pendingPromotionMove) return;
+
+    try {
+      const { sourceSquare, targetSquare } = pendingPromotionMove;
+      const move = chess.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: promotionPiece,
+      });
+
+      if (move === null) {
+        toast.error('Invalid promotion move!');
+        // This should ideally not happen if the initial move was valid
+        // and promotion was correctly detected.
+        return;
+      }
+
+      // Update game state after successful promotion
+      const newFen = chess.fen();
+      const newHistory = chess.history();
+      const moveTime = Date.now();
+      const timeDiff = (moveTime - lastMoveTime) / 1000;
+      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
+      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
+
+      setFen(newFen);
+      setCapturedPieces(calculateCapturedPieces(newFen));
+      setHistory(newHistory);
+      setWhiteTime(newWhiteTime);
+      setBlackTime(newBlackTime);
+      setLastMoveTime(moveTime);
+
+      // Check for game over conditions
+      if (chess.in_checkmate()) {
+        setGameStatus('checkmate');
+        toast.success(`Checkmate! ${chess.turn() === 'w' ? 'Black' : 'White'} wins!`);
+      } else if (chess.in_draw()) {
+        setGameStatus('draw');
+        toast.info('Draw!');
+      } else if (chess.in_stalemate()) {
+        setGameStatus('stalemate');
+        toast.info('Stalemate!');
+      } else if (chess.in_threefold_repetition()) {
+        setGameStatus('draw');
+        toast.info('Draw by threefold repetition!');
+      } else if (chess.insufficient_material()) {
+        setGameStatus('draw');
+        toast.info('Draw by insufficient material!');
+      }
+
+    } catch (error) {
+      console.error('Error during promotion:', error);
+      toast.error('An unexpected error occurred during promotion.');
+    } finally {
+      setShowPromotionModal(false);
+      setPendingPromotionMove(null);
+    }
+  };
+
+  const handleResign = (playerColor) => {
 
   const handleResign = (playerColor) => {
     if (window.confirm(`Are you sure you want to resign?`)) {
@@ -213,8 +289,8 @@ export default function LocalGamePage() {
             </div>
             <div>
               <h3 className="font-bold">Players</h3>
-              <p>White: Player 1</p>
-              <p>Black: Player 2</p>
+              <p className={chess && chess.turn() === 'w' ? 'text-yellow-400 font-semibold' : ''}>White: Player 1</p>
+              <p className={chess && chess.turn() === 'b' ? 'text-yellow-400 font-semibold' : ''}>Black: Player 2</p>
             </div>
             <button
               className="btn w-full mt-4 bg-green-600 hover:bg-green-700"

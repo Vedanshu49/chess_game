@@ -1,6 +1,7 @@
 import React from 'react';
 
 export default function MoveList({ history }) {
+  console.log("MoveList history:", history); // ADD THIS LINE
   return (
     <div className="bg-gray-800 p-4 rounded-md h-64 overflow-y-auto">
       <h3 className="text-lg font-semibold text-white mb-2">Moves</h3>

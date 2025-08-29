@@ -62,6 +62,8 @@ export default function GamePage() {
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
   const [lastMoveTime, setLastMoveTime] = useState(Date.now());
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [promotionMove, setPromotionMove] = useState(null); // To store { from, to }
 
   useEffect(() => {
     const loadChess = async () => {
@@ -144,6 +146,17 @@ export default function GamePage() {
     };
   }, [gameId, chess]);
 
+  useEffect(() => {
+    if (chess && fen) {
+      try {
+        chess.load(fen);
+        setHistory(chess.history());
+      } catch (e) {
+        console.error("Error loading FEN into chess.js for history:", e);
+      }
+    }
+  }, [chess, fen]);
+
   // Navigation Guard
   useEffect(() => {
     const warnBeforeLeaving = (e) => {
@@ -188,15 +201,42 @@ export default function GamePage() {
       return;
     }
 
+    const piece = chess.get(sourceSquare);
+    const targetRank = targetSquare[1];
+    const isPawn = piece && piece.type === 'p';
+    const isPromotionRank = (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
+
+    // Check for promotion scenario first
+    if (isPawn && isPromotionRank) {
+      // Temporarily try the move to see if it's legal without promotion specified
+      // If it's not legal, it means promotion is required.
+      // This is a bit of a hack, but chess.js doesn't have a direct "isPromotionRequired" method.
+      let tempMove = null;
+      try {
+        tempMove = chess.move({ from: sourceSquare, to: targetSquare });
+        chess.undo(); // Undo the temporary move
+      } catch (e) {
+        // This catch block is for chess.js errors, not invalid moves
+      }
+
+      if (tempMove === null) {
+        // Promotion is required
+        setPromotionMove({ sourceSquare, targetSquare });
+        setShowPromotionModal(true);
+        return; // Stop handleMove here, wait for promotion selection
+      }
+    }
+
+    // If not a promotion, or if it's a promotion that doesn't require a choice (e.g., only one legal promotion)
     try {
       const move = chess.move({
         from: sourceSquare,
         to: targetSquare,
-        promotion: 'q',
+        promotion: 'q', // Default to queen if not a promotion requiring choice
       });
 
       if (move === null) {
-        toast.error('Invalid move!');
+        toast.error('Invalid move! Please check piece movement rules, blocked paths, or if your King is in check.');
         return;
       }
 
@@ -234,6 +274,62 @@ export default function GamePage() {
     } catch (error) {
       console.log('Invalid move:', error);
       toast.error('An unexpected error occurred.');
+    }
+  };
+
+  const handlePromotion = async (promotedPiece) => {
+    if (!chess || !game || !user || !promotionMove) return;
+
+    setShowPromotionModal(false); // Hide modal
+
+    try {
+      const move = chess.move({
+        from: promotionMove.sourceSquare,
+        to: promotionMove.targetSquare,
+        promotion: promotedPiece,
+      });
+
+      if (move === null) {
+        toast.error('Invalid promotion move!');
+        return;
+      }
+
+      const newFen = chess.fen();
+      const newHistory = chess.history();
+      const moveTime = Date.now();
+      const timeDiff = (moveTime - lastMoveTime) / 1000;
+      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
+      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
+
+      setFen(newFen);
+      setCapturedPieces(calculateCapturedPieces(newFen));
+      setHistory(newHistory);
+      setWhiteTime(newWhiteTime);
+      setBlackTime(newBlackTime);
+      setLastMoveTime(moveTime);
+
+      const { error } = await supabase
+        .from('games')
+        .update({
+          fen: newFen,
+          white_time_left: newWhiteTime,
+          black_time_left: newBlackTime,
+          last_move_at: new Date(moveTime).toISOString(),
+        })
+        .eq('id', gameId);
+
+      if (error) {
+        toast.error('Error saving move: ' + error.message);
+        chess.undo();
+        setFen(chess.fen());
+        setCapturedPieces(calculateCapturedPieces(chess.fen()));
+        setHistory(chess.history());
+      }
+    } catch (error) {
+      console.log('Error during promotion:', error);
+      toast.error('An unexpected error occurred during promotion.');
+    } finally {
+      setPromotionMove(null); // Clear promotion move details
     }
   };
 
@@ -316,8 +412,8 @@ export default function GamePage() {
             </div>
             <div>
               <h3 className="font-bold">Players</h3>
-              <p>White: {game.creator_username || 'Player 1'}</p>
-              <p>Black: {game.opponent_username || 'Player 2'}</p>
+              <p className={chess && chess.turn() === 'w' ? 'text-yellow-400 font-semibold' : ''}>White: {game.creator_username || 'Player 1'}</p>
+              <p className={chess && chess.turn() === 'b' ? 'text-yellow-400 font-semibold' : ''}>Black: {game.opponent_username || 'Player 2'}</p>
             </div>
             {game.status === 'local' && (
               <button
@@ -338,6 +434,12 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+      {showPromotionModal && promotionMove && (
+        <PromotionModal
+          onSelectPromotion={handlePromotion}
+          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
+        />
+      )}
     </>
   );
 }
