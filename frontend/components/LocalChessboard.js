@@ -1,11 +1,8 @@
-import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import Chessboard from 'chessboardjsx';
 
-const Chessboard = dynamic(() => import('chessboardjsx'), {
-  ssr: false,
-  loading: () => <div className="text-center text-gray-400">Loading board...</div>,
-});
+// If you need SSR fallback, handle it in the parent page/component, not here.
 
 export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
   // Standard starting FEN
@@ -91,13 +88,13 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
   }
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full flex items-center justify-center" style={{ minHeight: 400 }}>
       <Chessboard
         position={safeFen}
         onDrop={onMove}
         onSquareClick={handleSquareClick}
         draggable={true}
-        width="100%"
+        width={400}
         boardStyle={{
           borderRadius: '5px',
           boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,

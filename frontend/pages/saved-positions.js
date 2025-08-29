@@ -8,7 +8,7 @@ import PageWithHeader from '@/components/PageWithHeader';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
-const Chessboard = dynamic(() => import('chessboardjsx'), { ssr: false });
+import Chessboard from 'chessboardjsx';
 
 export default function SavedPositions() {
   const [newFen, setNewFen] = useState('');
