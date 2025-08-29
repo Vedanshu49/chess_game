@@ -35,19 +35,21 @@ export function AuthProvider({ children }) {
     loadUserAndProfile();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setLoading(true);
       if (session) {
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
-        setUser(profile ? { ...session.user, profile } : session.user);
-        if (error) console.error("Error fetching profile on auth change:", error);
+        if (error) {
+          console.error("Error fetching profile on auth change:", error);
+          setUser(null);
+        } else {
+          setUser(profile ? { ...session.user, profile } : session.user);
+        }
       } else {
         setUser(null);
       }
-      setLoading(false);
     });
 
     return () => {
