@@ -1,5 +1,4 @@
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef } from 'react';
 
 const Chessboard = dynamic(() => import('chessboardjsx'), {
   ssr: false,
@@ -7,49 +6,20 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 });
 
 export default function LocalChessboard({ fen, onMove }) {
-  const boardRef = useRef(null);
-  const [boardWidth, setBoardWidth] = useState(0);
-  const [selectedSquare, setSelectedSquare] = useState(null); // New state for click-to-move
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (boardRef.current) {
-        setBoardWidth(boardRef.current.offsetWidth);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Set initial width
-
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const handleSquareClick = (square) => {
-    if (selectedSquare) {
-      // Second click: attempt to move
-      onMove({ sourceSquare: selectedSquare, targetSquare: square });
-      setSelectedSquare(null); // Clear selection
-    } else {
-      // First click: select the square
-      setSelectedSquare(square);
-    }
-  };
-
+  // The width of the board is responsive, taking full width of its container.
+  // The aspect ratio is maintained by the container in the GamePage.
   return (
-    <div ref={boardRef} className="w-full h-full">
-      {boardWidth > 0 && (
-        <Chessboard
-          position={fen}
-          onDrop={onMove}
-          onSquareClick={handleSquareClick} // Add onSquareClick handler
-          draggable={true}
-          width={boardWidth}
-          boardStyle={{
-            borderRadius: '5px',
-            boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,
-          }}
-        />
-      )}
+    <div className="w-full h-full">
+      <Chessboard
+        position={fen}
+        onDrop={onMove}
+        draggable={true}
+        width="100%"
+        boardStyle={{
+          borderRadius: '5px',
+          boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,
+        }}
+      />
     </div>
   );
 }

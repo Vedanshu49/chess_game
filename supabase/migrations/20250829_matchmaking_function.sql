@@ -19,7 +19,7 @@ BEGIN
         SET opponent = p_player_id,
             status = 'in_progress',
             players_joined = 2,
-            updated_at = now()
+            last_move_at = now()
         WHERE id = matched_game_id;
 
         RETURN QUERY SELECT matched_game_id, false;
@@ -52,7 +52,7 @@ BEGIN
                 SET opponent = p_player_id,
                     status = 'in_progress',
                     players_joined = 2,
-                    updated_at = now()
+                    last_move_at = now()
                 WHERE id = matched_game_id;
 
                 RETURN QUERY SELECT matched_game_id, false;
