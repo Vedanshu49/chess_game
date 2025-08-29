@@ -106,6 +106,7 @@ export default function ProfilePage() {
             url={profile.avatar_url}
             size={150}
             onUpload={updateAvatar}
+            userId={user.id}
           />
           <h1 className="text-3xl font-bold text-text text-center mt-4">{profile.username}</h1>
         </div>

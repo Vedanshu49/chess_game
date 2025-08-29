@@ -31,6 +31,7 @@ export default function SpectatePage() {
 
       if (error) {
         console.error('Error fetching games:', error);
+        toast.error('Error fetching games: ' + error.message);
         setGames([]);
       } else {
         setGames(data);

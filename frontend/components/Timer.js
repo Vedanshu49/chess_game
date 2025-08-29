@@ -20,15 +20,16 @@ export default function Timer({ initialTime, isRunning }) {
   }, [initialTime]);
 
   const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const roundedSeconds = Math.floor(seconds);
+    const minutes = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   return (
     <div className="bg-panel p-4 rounded-md text-center shadow-lg">
       <h3 className="text-lg font-semibold text-text mb-2">Timer</h3>
-      <div className="text-4xl font-mono text-text">{formatTime(time)}</div>
+      <div className="text-3xl font-mono text-text">{formatTime(time)}</div>
     </div>
   );
 }

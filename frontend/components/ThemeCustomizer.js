@@ -58,6 +58,7 @@ export default function ThemeCustomizer({ userId }) {
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
       console.error('Error loading preferences:', error)
+      toast.error('Error loading preferences: ' + error.message)
       return
     }
 

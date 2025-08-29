@@ -24,6 +24,7 @@ export default function Chat({ gameId, user }) {
 
       if (error) {
         console.error('Error fetching messages:', error);
+        toast.error('Error fetching messages: ' + error.message);
       } else {
         setMessages(data);
       }
@@ -41,6 +42,7 @@ export default function Chat({ gameId, user }) {
 
       if (error) {
         console.error('Error fetching profile for new message:', error);
+        toast.error('Error fetching profile: ' + error.message);
         newMessage.profile = null;
       } else {
         newMessage.profile = profile;
@@ -68,6 +70,7 @@ export default function Chat({ gameId, user }) {
 
     if (error) {
       console.error('Error sending message:', error);
+      toast.error('Error sending message: ' + error.message);
     } else {
       setNewMessage('');
     }

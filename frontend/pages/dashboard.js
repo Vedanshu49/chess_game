@@ -65,7 +65,7 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from('games')
-        .insert({ status: 'waiting', invite_code: inviteCode, creator: user.id, players_joined: 1 })
+        .insert({ status: 'waiting', invite_code: inviteCode, creator: user.id, players_joined: 1, fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' })
         .select()
         .single();
       if (error) throw error;

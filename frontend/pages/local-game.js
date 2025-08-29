@@ -7,45 +7,11 @@ import CapturedPieces from "@/components/CapturedPieces";
 import MoveList from "@/components/MoveList";
 import Timer from "@/components/Timer";
 import PromotionModal from "@/components/PromotionModal";
+import { calculateCapturedPieces } from "@/lib/utils";
 
 const LocalChessboard = dynamic(() => import('@/components/LocalChessboard'), { ssr: false });
 
-const initialPieces = {
-  p: 8, r: 2, n: 2, b: 2, q: 1, k: 1
-};
 
-function calculateCapturedPieces(fen) {
-  const captured = { w: {}, b: {} };
-  if (!fen) return captured;
-
-  const piecesOnBoard = {
-    w: { p: 0, r: 0, n: 0, b: 0, q: 0, k: 0 },
-    b: { p: 0, r: 0, n: 0, b: 0, q: 0, k: 0 },
-  };
-
-  fen.split(' ')[0].split('/').forEach(row => {
-    for (const char of row) {
-      if (isNaN(parseInt(char))) { // if it is a piece
-        const color = char === char.toUpperCase() ? 'w' : 'b';
-        const piece = char.toLowerCase();
-        if (piecesOnBoard[color][piece] !== undefined) {
-          piecesOnBoard[color][piece]++;
-        }
-      }
-    }
-  });
-
-  for (const color of ['w', 'b']) {
-    for (const piece in initialPieces) {
-      const diff = initialPieces[piece] - piecesOnBoard[color][piece];
-      if (diff > 0) {
-        captured[color][piece] = diff;
-      }
-    }
-  }
-
-  return captured;
-}
 
 export default function LocalGamePage() {
   const [chess, setChess] = useState(null);
@@ -111,7 +77,7 @@ export default function LocalGamePage() {
     }
   }, [gameStatus, lastMoveTime, chess]);
 
-  const handleMove = useCallback((sourceSquare, targetSquare) => {
+  const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
     if (!chess || gameStatus !== 'in_progress') return;
 
     const piece = chess.get(sourceSquare);
@@ -241,7 +207,7 @@ export default function LocalGamePage() {
         <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-4">
           <div className="bg-panel p-4 rounded-lg shadow-lg">
             <h2 className="text-2xl font-bold mb-4">Local Game</h2>
-            <div className="flex justify-around mb-2">
+            <div className="flex flex-col sm:flex-row sm:justify-around mb-2 gap-2">
                 <div className={`p-2 rounded ${chess && chess.turn() === 'w' ? 'bg-accent text-white' : ''}`}>
                     <h3 className="font-bold text-lg">White</h3>
                     <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />

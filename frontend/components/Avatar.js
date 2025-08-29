@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabasejs'
+import toast from 'react-hot-toast';
 
-export default function Avatar({ url, size, onUpload }) {
+export default function Avatar({ url, size, onUpload, userId }) {
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploading, setUploading] = useState(false)
 
@@ -18,7 +19,8 @@ export default function Avatar({ url, size, onUpload }) {
       const url = URL.createObjectURL(data)
       setAvatarUrl(url)
     } catch (error) {
-      console.log('Error downloading image: ', error.message)
+      console.error('Error downloading image: ', error.message)
+      toast.error('Error downloading image: ' + error.message)
     }
   }
 
@@ -32,10 +34,10 @@ export default function Avatar({ url, size, onUpload }) {
 
       const file = event.target.files[0]
       const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}.${fileExt}`
+      const fileName = `${userId}.${fileExt}`
       const filePath = `${fileName}`
 
-      let { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file)
+      let { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true })
 
       if (uploadError) {
         throw uploadError
@@ -43,7 +45,7 @@ export default function Avatar({ url, size, onUpload }) {
 
       onUpload(filePath)
     } catch (error) {
-      alert(error.message)
+      toast.error(error.message)
     } finally {
       setUploading(false)
     }
