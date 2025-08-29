@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabasejs';
 import { useRouter } from 'next/router';
-import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/AuthProvider';
 import PageWithHeader from '@/components/PageWithHeader';
 import toast from 'react-hot-toast';

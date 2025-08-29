@@ -44,7 +44,7 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
       if (!selectedSquare) {
         setSelectedSquare(square);
         // Get legal moves for this piece
-        if (window.chess) {
+        if (typeof window !== 'undefined' && window.chess) {
           const moves = window.chess.moves({ square, verbose: true });
           if (moves.length === 0) {
             toast.error('No legal moves for this piece.');
@@ -64,7 +64,7 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
           setLegalMoves([]);
         } else {
           setSelectedSquare(square);
-          if (window.chess) {
+          if (typeof window !== 'undefined' && window.chess) {
             const moves = window.chess.moves({ square, verbose: true });
             if (moves.length === 0) {
               toast.error('No legal moves for this piece.');
