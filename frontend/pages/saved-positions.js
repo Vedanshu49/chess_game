@@ -75,8 +75,8 @@ export default function SavedPositions() {
               draggable={false}
             />
             <div className="p-4">
-              <p className="text-sm text-gray-500">Saved on: {new Date(pos.created_at).toLocaleDateString()}</p>
-              <p className="font-mono bg-gray-800 p-2 rounded mt-2 whitespace-nowrap overflow-x-auto">{pos.fen}</p>
+              <p className="text-sm text-muted">Saved on: {new Date(pos.created_at).toLocaleDateString()}</p>
+              <p className="font-mono bg-[#222222] p-2 rounded mt-2 whitespace-nowrap overflow-x-auto">{pos.fen}</p>
               <button
                 onClick={() => deletePosition(pos.id)}
                 className="btn bg-red-600 hover:bg-red-700 mt-2"
@@ -88,7 +88,7 @@ export default function SavedPositions() {
         ))}
       </div>
       {positions.length === 0 && (
-        <p className="text-center">You haven't saved any positions yet.</p>
+        <p className="text-center text-text">You haven't saved any positions yet.</p>
       )}
     </PageWithHeader>
   );

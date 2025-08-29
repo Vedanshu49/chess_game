@@ -193,13 +193,13 @@ export default function FriendsPage() {
     <PageWithHeader user={user} title="Friends">
       {challengeModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-[#1c2836] p-6 rounded-lg w-full max-w-md">
+          <div className="bg-panel p-6 rounded-lg w-full max-w-md text-text">
             <h2 className="text-xl font-bold mb-4">Challenge {challengeModal.friendUsername}</h2>
             <div className="space-y-4">
               <p>Select Time Control:</p>
               <div className="flex flex-wrap gap-2">
                 {[ {t:1,i:0}, {t:3,i:2}, {t:5,i:0}, {t:10,i:5} ].map(tc => (
-                  <button key={`${tc.t}-${tc.i}`} onClick={() => setTimeControl({ time: tc.t, increment: tc.i })} className={`btn ${timeControl.time === tc.t && timeControl.increment === tc.i ? 'bg-green-600' : 'bg-gray-600'}`}>
+                  <button key={`${tc.t}-${tc.i}`} onClick={() => setTimeControl({ time: tc.t, increment: tc.i })} className={`btn ${timeControl.time === tc.t && timeControl.increment === tc.i ? 'bg-green-600' : 'bg-muted'}`}>
                     {tc.t}+{tc.i}
                   </button>
                 ))}
@@ -216,34 +216,34 @@ export default function FriendsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-4 mt-6">
-              <button onClick={() => setChallengeModal({ isOpen: false, friendId: null, friendUsername: null })} className="btn bg-gray-700">Cancel</button>
-              <button onClick={handleChallenge} className="btn bg-blue-600">Send Challenge</button>
+              <button onClick={() => setChallengeModal({ isOpen: false, friendId: null, friendUsername: null })} className="btn bg-[#222222]">Cancel</button>
+              <button onClick={handleChallenge} className="btn bg-accent">Send Challenge</button>
             </div>
           </div>
         </div>
       )}
 
       <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-1">
-          <h2 className="text-xl font-semibold mb-3">Your Friends ({friends.length})</h2>
+        <div className="md:col-span-1 bg-panel p-4 rounded-lg shadow-lg">
+          <h2 className="text-xl font-semibold mb-3 text-text">Your Friends ({friends.length})</h2>
           {loading ? <LoadingSpinner /> : (
             <ul className="space-y-2">
               {friends.map(friend => (
-                <li key={friend.id} className="bg-[#1c2836] p-3 rounded-lg flex justify-between items-center">
+                <li key={friend.id} className="bg-[#222222] p-3 rounded-lg flex justify-between items-center text-text">
                   <span>{friend.username}</span>
-                  <button onClick={() => setChallengeModal({ isOpen: true, friendId: friend.id, friendUsername: friend.username })} className="btn bg-blue-600 hover:bg-blue-700">Challenge</button>
+                  <button onClick={() => setChallengeModal({ isOpen: true, friendId: friend.id, friendUsername: friend.username })} className="btn bg-accent">Challenge</button>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="md:col-span-1">
-          <h2 className="text-xl font-semibold mb-3">Friend Requests ({pendingRequests.length})</h2>
+        <div className="md:col-span-1 bg-panel p-4 rounded-lg shadow-lg">
+          <h2 className="text-xl font-semibold mb-3 text-text">Friend Requests ({pendingRequests.length})</h2>
           {loading ? <LoadingSpinner /> : (
             <ul className="space-y-2">
               {pendingRequests.map(req => (
-                <li key={req.id} className="bg-[#1c2836] p-3 rounded-lg flex justify-between items-center">
+                <li key={req.id} className="bg-[#222222] p-3 rounded-lg flex justify-between items-center text-text">
                   <span>{req.user.username}</span>
                   <div className="flex gap-2">
                     <button onClick={() => handleAcceptRequest(req.id)} className="btn bg-green-600 hover:bg-green-700">Accept</button>
@@ -254,11 +254,11 @@ export default function FriendsPage() {
             </ul>
           )}
 
-          <h2 className="text-xl font-semibold mb-3 mt-6">Sent Requests ({sentRequests.length})</h2>
+          <h2 className="text-xl font-semibold mb-3 mt-6 text-text">Sent Requests ({sentRequests.length})</h2>
           {loading ? <LoadingSpinner /> : (
             <ul className="space-y-2">
               {sentRequests.map(req => (
-                <li key={req.id} className="bg-[#1c2836] p-3 rounded-lg flex justify-between items-center">
+                <li key={req.id} className="bg-[#222222] p-3 rounded-lg flex justify-between items-center text-text">
                   <span>{req.friend.username}</span>
                   <span className="text-muted">Pending</span>
                 </li>
@@ -267,17 +267,17 @@ export default function FriendsPage() {
           )}
         </div>
 
-        <div className="md:col-span-1">
-          <h2 className="text-xl font-semibold mb-3">Add a Friend</h2>
+        <div className="md:col-span-1 bg-panel p-4 rounded-lg shadow-lg">
+          <h2 className="text-xl font-semibold mb-3 text-text">Add a Friend</h2>
           <form onSubmit={handleSendRequest} className="flex gap-2">
             <input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="Enter username"
-              className="flex-1 bg-[#0e141b] rounded-lg px-3 py-2"
+              className="input flex-1"
             />
-            <button type="submit" className="btn bg-blue-600 hover:bg-blue-700">Send Request</button>
+            <button type="submit" className="btn bg-accent">Send Request</button>
           </form>
         </div>
       </div>

@@ -277,58 +277,74 @@ export default function LocalGamePage() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-black text-white p-4 flex flex-col lg:flex-row items-center lg:items-start justify-center">
-        <div className="w-full lg:w-auto flex justify-center items-center p-2 lg:flex-grow">
-          <div className="w-[90vh] max-w-[90vw] aspect-square">
+      <div className="min-h-screen bg-bg text-text flex flex-col lg:flex-row lg:justify-center lg:items-start p-4 gap-4">
+        {/* Chessboard Section */}
+        <div className="flex-grow flex justify-center items-center">
+          <div className="w-[90vh] max-w-[90vw] aspect-square shadow-lg rounded-lg overflow-hidden">
             {chess && <LocalChessboard fen={fen} onMove={handleMove} />}
           </div>
         </div>
-        <div className="w-full lg:w-96 bg-gray-900 p-4 rounded-lg mt-4 lg:mt-0 lg:ml-4 flex-shrink-0">
-          <h2 className="text-2xl font-bold mb-4">Local Game Info</h2>
-          <div className="space-y-4">
-            <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />
-            <Timer initialTime={blackTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'b'} />
-            <CapturedPieces captured={capturedPieces.b} color="white" />
-            <CapturedPieces captured={capturedPieces.w} color="black" />
-            <MoveList history={history} />
-            <div>
-              <h3 className="font-bold">Status</h3>
-              <p>{gameStatus}</p>
-            </div>
-            <div>
-              <h3 className="font-bold">Turn</h3>
-              <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
-            </div>
-            <div>
-              <h3 className="font-bold">Players</h3>
-              <p className={chess && chess.turn() === 'w' ? 'text-yellow-400 font-semibold' : ''}>White: Player 1</p>
-              <p className={chess && chess.turn() === 'b' ? 'text-yellow-400 font-semibold' : ''}>Black: Player 2</p>
-            </div>
-            <button
-              className="btn w-full mt-4 bg-green-600 hover:bg-green-700"
-              onClick={handleNewGame}
-            >
-              New Game
-            </button>
-            {gameStatus === 'in_progress' && (
-              <div className="flex gap-2 mt-2">
-                <button
-                  className="btn flex-1 bg-red-600 hover:bg-red-700"
-                  onClick={() => handleResign('white')}
-                >
-                  White Resigns
-                </button>
-                <button
-                  className="btn flex-1 bg-red-600 hover:bg-red-700"
-                  onClick={() => handleResign('black')}
-                >
-                  Black Resigns
-                </button>
+
+        {/* Sidebar Section */}
+        <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-4">
+          {/* Game Info Panel */}
+          <div className="bg-panel p-4 rounded-lg shadow-lg">
+            <h2 className="text-2xl font-bold mb-4">Local Game Info</h2>
+            <div className="space-y-4">
+              <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />
+              <Timer initialTime={blackTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'b'} />
+              <CapturedPieces captured={capturedPieces.b} color="white" />
+              <CapturedPieces captured={capturedPieces.w} color="black" />
+              {/* MoveList will go here */}
+              <div>
+                <h3 className="font-bold">Status</h3>
+                <p>{gameStatus}</p>
               </div>
-            )}
+              <div>
+                <h3 className="font-bold">Turn</h3>
+                <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
+              </div>
+              <div>
+                <h3 className="font-bold">Players</h3>
+                <p className={chess && chess.turn() === 'w' ? 'text-accent font-semibold' : ''}>White: Player 1</p>
+                <p className={chess && chess.turn() === 'b' ? 'text-accent font-semibold' : ''}>Black: Player 2</p>
+              </div>
+              <button
+                className="btn w-full mt-4 bg-green-600 hover:bg-green-700"
+                onClick={handleNewGame}
+              >
+                New Game
+              </button>
+              {gameStatus === 'in_progress' && (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="btn flex-1 bg-red-600 hover:bg-red-700"
+                    onClick={() => handleResign('white')}
+                  >
+                    White Resigns
+                  </button>
+                  <button
+                    className="btn flex-1 bg-red-600 hover:bg-red-700"
+                    onClick={() => handleResign('black')}
+                  >
+                    Black Resigns
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          <MoveList history={history} /> {/* MoveList moved outside Game Info Panel */}
         </div>
       </div>
+      {showPromotionModal && pendingPromotionMove && (
+        <PromotionModal
+          onSelectPromotion={handlePromotion}
+          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
+        />
+      )}
+    </>
+  );
+}
       {showPromotionModal && pendingPromotionMove && (
         <PromotionModal
           onSelectPromotion={handlePromotion}

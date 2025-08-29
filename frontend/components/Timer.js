@@ -26,9 +26,9 @@ export default function Timer({ initialTime, isRunning }) {
   };
 
   return (
-    <div className="bg-gray-800 p-4 rounded-md text-center">
-      <h3 className="text-lg font-semibold text-white mb-2">Timer</h3>
-      <div className="text-4xl font-mono text-white">{formatTime(time)}</div>
+    <div className="bg-panel p-4 rounded-md text-center shadow-lg">
+      <h3 className="text-lg font-semibold text-text mb-2">Timer</h3>
+      <div className="text-4xl font-mono text-text">{formatTime(time)}</div>
     </div>
   );
 }

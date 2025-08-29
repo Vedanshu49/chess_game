@@ -101,26 +101,26 @@ export default function SearchPage() {
         value={searchTerm}
         onChange={e => setSearchTerm(e.target.value)}
         placeholder="Enter username..."
-        className="w-full bg-[#0e141b] rounded-lg px-4 py-2 mb-4"
+        className="input mb-4"
       />
 
       {challengeModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-[#1c2836] p-6 rounded-lg w-full max-w-md">
+          <div className="bg-panel p-6 rounded-lg w-full max-w-md text-text">
             <h2 className="text-xl font-bold mb-4">Challenge {challengeModal.friendUsername}</h2>
             <div className="space-y-4">
               <p>Select Time Control:</p>
               <div className="flex flex-wrap gap-2">
                 {[ {t:1,i:0}, {t:3,i:2}, {t:5,i:0}, {t:10,i:5} ].map(tc => (
-                  <button key={`${tc.t}-${tc.i}`} onClick={() => setTimeControl({ time: tc.t, increment: tc.i })} className={`btn ${timeControl.time === tc.t && timeControl.increment === tc.i ? 'bg-green-600' : 'bg-gray-600'}`}>
+                  <button key={`${tc.t}-${tc.i}`} onClick={() => setTimeControl({ time: tc.t, increment: tc.i })} className={`btn ${timeControl.time === tc.t && timeControl.increment === tc.i ? 'bg-green-600' : 'bg-muted'}`}>
                     {tc.t}+{tc.i}
                   </button>
                 ))}
               </div>
             </div>
             <div className="flex justify-end gap-4 mt-6">
-              <button onClick={() => setChallengeModal({ isOpen: false, friendId: null, friendUsername: null })} className="btn bg-gray-700">Cancel</button>
-              <button onClick={handleChallenge} className="btn bg-blue-600">Send Challenge</button>
+              <button onClick={() => setChallengeModal({ isOpen: false, friendId: null, friendUsername: null })} className="btn bg-[#222222]">Cancel</button>
+              <button onClick={handleChallenge} className="btn bg-accent">Send Challenge</button>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function SearchPage() {
       ) : (
         <ul className="space-y-2">
           {results.map(player => (
-            <li key={player.id} className="bg-[#1c2836] p-3 rounded-lg flex justify-between items-center">
+            <li key={player.id} className="bg-panel p-3 rounded-lg flex justify-between items-center text-text">
               <div>
                 <span className="font-bold">{player.username}</span>
                 <span className="text-muted ml-2">({player.rating})</span>
@@ -140,7 +140,7 @@ export default function SearchPage() {
                 {user?.id !== player.id && (
                   <>
                     <button onClick={() => handleSendRequest(player.id)} className="btn bg-green-600 hover:bg-green-700">Add Friend</button>
-                    <button onClick={() => setChallengeModal({ isOpen: true, friendId: player.id, friendUsername: player.username })} className="btn bg-blue-600 hover:bg-blue-700">Challenge</button>
+                    <button onClick={() => setChallengeModal({ isOpen: true, friendId: player.id, friendUsername: player.username })} className="btn bg-accent">Challenge</button>
                   </>
                 )}
               </div>

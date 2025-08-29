@@ -45,7 +45,7 @@ export default function SpectatePage() {
     return (
       <>
         <NavBar user={user} />
-        <div className="container mx-auto p-4">
+        <div className="min-h-screen bg-bg text-text flex flex-col items-center justify-center">
           <p>Loading games...</p>
         </div>
       </>
@@ -55,7 +55,7 @@ export default function SpectatePage() {
   return (
     <>
       <NavBar user={user} />
-      <div className="container mx-auto p-4">
+      <div className="min-h-screen bg-bg text-text p-4">
         <button
           onClick={() => router.push('/dashboard')}
           className="btn mb-4"
@@ -63,9 +63,9 @@ export default function SpectatePage() {
           &larr; Back to Dashboard
         </button>
         <h1 className="text-2xl font-bold mb-4">Spectate Games</h1>
-        <div className="bg-[#1c2836] rounded-lg shadow-lg">
+        <div className="bg-panel rounded-lg shadow-lg">
           {games.length > 0 ? (
-            <ul className="divide-y divide-[#233041]">
+            <ul className="divide-y divide-muted">
               {games.map(game => (
                 <li key={game.id} className="p-4 flex justify-between items-center">
                   <div>
@@ -75,7 +75,7 @@ export default function SpectatePage() {
                   </div>
                   <button
                     onClick={() => router.push(`/game/${game.id}?spectate=true`)}
-                    className="btn bg-blue-600 hover:bg-blue-700"
+                    className="btn bg-accent"
                   >
                     Watch
                   </button>

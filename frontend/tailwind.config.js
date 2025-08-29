@@ -7,11 +7,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: "#0b0f14",
-        panel: "#121820",
-        accent: "#3ea6ff",
-        text: "#e5eef7",
-        muted: "#93a4b2"
+        bg: "#1A1A1A",
+        panel: "#2D2D2D",
+        accent: "#63B3ED",
+        text: "#E2E8F0",
+        muted: "#4A5568"
       }
     }
   },

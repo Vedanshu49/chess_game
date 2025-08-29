@@ -39,7 +39,7 @@ export default function LeaderboardPage() {
   const TimeFrameButton = ({ frame, label }) => (
     <button
       onClick={() => setTimeFrame(frame)}
-      className={`btn ${timeFrame === frame ? 'bg-blue-600' : 'bg-gray-700'}`}
+      className={`btn ${timeFrame === frame ? 'bg-accent' : 'bg-muted'}`}
     >
       {label}
     </button>
@@ -60,9 +60,9 @@ export default function LeaderboardPage() {
         <TimeFrameButton frame="weekly" label="Weekly" />
         <TimeFrameButton frame="monthly" label="Monthly" />
       </div>
-      <div className="bg-[#1c2836] rounded-lg shadow-lg">
+      <div className="bg-panel rounded-lg shadow-lg text-text">
         <table className="w-full text-left">
-          <thead className="bg-[#233041]">
+          <thead className="bg-[#222222]">
             <tr>
               <th className="p-4">Rank</th>
               <th className="p-4">Player</th>
@@ -72,7 +72,7 @@ export default function LeaderboardPage() {
           </thead>
           <tbody>
             {leaderboardData.map((player, index) => (
-              <tr key={player.username} className="border-b border-[#233041]">
+              <tr key={player.username} className="border-b border-muted">
                 <td className="p-4">{index + 1}</td>
                 <td className="p-4">{player.username}</td>
                 <td className="p-4">{timeFrame === 'all_time' ? player.rating : player.wins}</td>

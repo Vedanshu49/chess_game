@@ -138,13 +138,28 @@ export default function GamePage() {
           chess.load(newGame.fen);
           setHistory(chess.history());
         }
+
+        // --- NEW LOGIC FOR GAME END ---
+        if (newGame.status === 'finished') {
+          if (user && newGame.winner === user.id) {
+            toast.success('You Win! Opponent Resigned.');
+          } else if (user && newGame.winner !== user.id) {
+            // This case is for the player who did NOT resign but lost (e.g., opponent resigned)
+            // The resigning player already gets a toast from handleResign
+            toast.error('You Lost! Opponent Resigned.');
+          }
+          // Optionally, disable further moves or show a game over screen
+          // This will be handled by conditional rendering in the JSX
+        }
+        // --- END NEW LOGIC ---
+
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [gameId, chess]);
+  }, [gameId, chess, user]);
 
   useEffect(() => {
     if (chess && fen) {
@@ -341,7 +356,7 @@ export default function GamePage() {
       try {
         const { error } = await supabase
           .from('games')
-          .update({ status: 'finished', winner: winner })
+          .update({ status: 'finished', winner: winner, winner_reason: 'resignation' }) // Added winner_reason
           .eq('id', gameId);
 
         if (error) {
@@ -360,7 +375,7 @@ export default function GamePage() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+        <div className="min-h-screen bg-bg text-text flex flex-col items-center justify-center">
           <div className="text-lg">Loading Game...</div>
         </div>
       </>
@@ -370,70 +385,95 @@ export default function GamePage() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-black text-white p-4 flex flex-col lg:flex-row items-center lg:items-start justify-center">
-        <div className="w-full lg:w-auto flex justify-center items-center p-2 lg:flex-grow">
-          <div className="w-[90vh] max-w-[90vw] aspect-square">
+      <div className="min-h-screen bg-bg text-text flex flex-col lg:flex-row lg:justify-center lg:items-start p-4 gap-4">
+        {/* Chessboard Section */}
+        <div className="flex-grow flex justify-center items-center">
+          <div className="w-[90vh] max-w-[90vw] aspect-square shadow-lg rounded-lg overflow-hidden">
             <LocalChessboard fen={fen} onMove={handleMove} />
           </div>
         </div>
-        <div className="w-full lg:w-96 bg-gray-900 p-4 rounded-lg mt-4 lg:mt-0 lg:ml-4 flex-shrink-0">
-          <h2 className="text-2xl font-bold mb-4">Game Info</h2>
-          <div className="space-y-4">
-            {game?.players_joined < 2 ? (
-              <div className="text-center text-lg font-semibold text-yellow-400">
-                Waiting for opponent...
-              </div>
-            ) : (
-              <> 
-                <Timer initialTime={blackTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'b'} />
-                <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
-              </>
-            )}
 
-            {game?.invite_code && game?.players_joined < 2 && (
-              <div className="text-center bg-blue-800 p-2 rounded-md">
-                <p className="text-white font-semibold">Invite Code:</p>
-                <p className="text-3xl font-bold text-yellow-300">{game.invite_code}</p>
-                <p className="text-sm text-gray-300">Share this code with your friend!</p>
-              </div>
-            )}
+        {/* Sidebar Section */}
+        <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-4">
+          {/* Game Info Panel */}
+          <div className="bg-panel p-4 rounded-lg shadow-lg">
+            <h2 className="text-2xl font-bold mb-4">Game Info</h2>
+            <div className="space-y-4">
+              {game?.status === 'finished' ? (
+                <div className="text-center text-2xl font-bold text-accent">
+                  Game Over! {game.winner === user?.id ? 'You Win!' : 'You Lost!'}
+                  {game.winner === user?.id && game.status === 'finished' && game.winner_reason === 'resignation' && (
+                    <p className="text-lg text-text">Opponent Resigned</p>
+                  )}
+                  {/* Add more reasons here if available in game object */}
+                </div>
+              ) : game?.players_joined < 2 ? (
+                <div className="text-center text-lg font-semibold text-accent">
+                  Waiting for opponent...
+                </div>
+              ) : (
+                <> 
+                  <Timer initialTime={blackTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'b'} />
+                  <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
+                </>
+              )}
 
-            <CapturedPieces captured={capturedPieces.b} color="white" />
-            <CapturedPieces captured={capturedPieces.w} color="black" />
-            <MoveList history={history} />
-            {user && <Chat gameId={gameId} user={user} />}
-            <div>
-              <h3 className="font-bold">Status</h3>
-              <p>{game.status}</p>
+              {game?.invite_code && game?.players_joined < 2 && (
+                <div className="text-center bg-accent p-2 rounded-md">
+                  <p className="text-text font-semibold">Invite Code:</p>
+                  <p className="text-3xl font-bold text-accent">{game.invite_code}</p>
+                  <p className="text-sm text-muted">Share this code with your friend!</p>
+                </div>
+              )}
+
+              <CapturedPieces captured={capturedPieces.b} color="white" />
+              <CapturedPieces captured={capturedPieces.w} color="black" />
+              {/* MoveList will go here */}
+              {/* Chat will go here */}
+              <div>
+                <h3 className="font-bold">Status</h3>
+                <p>{game.status}</p>
+              </div>
+              <div>
+                <h3 className="font-bold">Turn</h3>
+                <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
+              </div>
+              <div>
+                <h3 className="font-bold">Players</h3>
+                <p className={chess && chess.turn() === 'w' ? 'text-accent font-semibold' : ''}>White: {game.creator_username || 'Player 1'}</p>
+                <p className={chess && chess.turn() === 'b' ? 'text-accent font-semibold' : ''}>Black: {game.opponent_username || 'Player 2'}</p>
+              </div>
+              {game.status === 'local' && (
+                <button
+                  className="btn w-full mt-4"
+                  onClick={() => router.push('/dashboard')}
+                >
+                  Leave Match
+                </button>
+              )}
+              {game.status === 'in_progress' && (
+                <button
+                  className="btn w-full mt-4 bg-red-600 hover:bg-red-700"
+                  onClick={handleResign}
+                >
+                  Resign
+                </button>
+              )}
             </div>
-            <div>
-              <h3 className="font-bold">Turn</h3>
-              <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
-            </div>
-            <div>
-              <h3 className="font-bold">Players</h3>
-              <p className={chess && chess.turn() === 'w' ? 'text-yellow-400 font-semibold' : ''}>White: {game.creator_username || 'Player 1'}</p>
-              <p className={chess && chess.turn() === 'b' ? 'text-yellow-400 font-semibold' : ''}>Black: {game.opponent_username || 'Player 2'}</p>
-            </div>
-            {game.status === 'local' && (
-              <button
-                className="btn w-full mt-4"
-                onClick={() => router.push('/dashboard')}
-              >
-                Leave Match
-              </button>
-            )}
-            {game.status === 'in_progress' && (
-              <button
-                className="btn w-full mt-4 bg-red-600 hover:bg-red-700"
-                onClick={handleResign}
-              >
-                Resign
-              </button>
-            )}
           </div>
+          {user && <Chat gameId={gameId} user={user} />} {/* Chat moved outside Game Info Panel */}
+          <MoveList history={history} /> {/* MoveList moved outside Game Info Panel */}
         </div>
       </div>
+      {showPromotionModal && promotionMove && (
+        <PromotionModal
+          onSelectPromotion={handlePromotion}
+          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
+        />
+      )}
+    </>
+  );
+}
       {showPromotionModal && promotionMove && (
         <PromotionModal
           onSelectPromotion={handlePromotion}

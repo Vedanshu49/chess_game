@@ -55,14 +55,17 @@ export default function Avatar({ url, size, onUpload }) {
         <img
           src={avatarUrl}
           alt="Avatar"
-          className="avatar image"
+          className="rounded-full object-cover"
           style={{ height: size, width: size }}
         />
       ) : (
-        <div className="avatar no-image" style={{ height: size, width: size }} />
+        <div className="rounded-full bg-muted flex items-center justify-center text-text text-xl font-bold"
+          style={{ height: size, width: size }}>
+          {/* You might want to display initials here */}
+        </div>
       )}
       <div style={{ width: size }}>
-        <label className="button primary block" htmlFor="single">
+        <label className="btn w-full mt-2" htmlFor="single">
           {uploading ? 'Uploading ...' : 'Upload'}
         </label>
         <input

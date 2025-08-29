@@ -177,10 +177,10 @@ export default function Dashboard() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+        <div className="min-h-screen bg-bg text-text flex flex-col items-center justify-center">
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-bold">Chess App</h1>
-            <div className="text-xs text-gray-400 mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
+            <div className="text-xs text-muted mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
           </div>
           <div className="text-lg">Loading...</div>
         </div>
@@ -191,17 +191,17 @@ export default function Dashboard() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-black text-white p-10 flex flex-col items-center justify-start">
+      <div className="min-h-screen bg-bg text-text p-10 flex flex-col items-center justify-start">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold">Chess App</h1>
-          <div className="text-xs text-gray-400 mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
+          <div className="text-xs text-muted mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
           </div>
         <h2 className="text-2xl font-bold mb-6">Welcome, {(user.profile && user.profile.username) ? user.profile.username : user.email}</h2>
         <button className="btn mb-8" onClick={() => setShowStartModal(true)}>Start Game</button>
         {showStartModal && (
           <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-[#1a2233] p-8 rounded-lg shadow-lg w-full max-w-md relative">
-              <button className="absolute top-2 right-2 text-white" onClick={() => setShowStartModal(false)}>✕</button>
+            <div className="bg-panel p-8 rounded-lg shadow-lg w-full max-w-md relative">
+              <button className="absolute top-2 right-2 text-text" onClick={() => setShowStartModal(false)}>✕</button>
               <h2 className="text-2xl font-bold mb-6 text-center">Start Game</h2>
               <button className="btn w-full mb-4" onClick={handleCreateLocalGame} disabled={searching}>
                 {searching ? 'Creating...' : 'Play Local (2 players, one device)'}

@@ -15,14 +15,14 @@ export default function CapturedPieces({ captured, color }) {
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-1 p-2 bg-gray-800 rounded-md">
-      <h3 className="text-sm font-semibold text-gray-400 mr-2 capitalize">{color}:</h3>
+    <div className="flex flex-wrap items-center gap-1 p-2 bg-panel rounded-md shadow-lg">
+      <h3 className="text-sm font-semibold text-muted mr-2 capitalize">{color}:</h3>
       {capturedPieces.length > 0 ? (
         capturedPieces.map((piece, index) => (
           <Piece key={index} piece={piece} color={color === 'white' ? 'black' : 'white'} />
         ))
       ) : (
-        <p className="text-xs text-gray-500">No pieces captured</p>
+        <p className="text-xs text-muted">No pieces captured</p>
       )}
     </div>
   );

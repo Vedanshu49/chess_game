@@ -28,14 +28,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white px-6">
-      <div className="bg-gray-800 shadow-2xl rounded-2xl p-10 max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center bg-bg text-text px-6">
+      <div className="bg-panel shadow-2xl rounded-2xl p-10 max-w-md w-full">
         <div className="mb-4 text-center">
           <h1 className="text-3xl font-bold">Chess App</h1>
-          <div className="text-xs text-gray-400 mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
+          <div className="text-xs text-muted mt-1" style={{ whiteSpace: 'pre' }}>    A project by Vedanshu</div>
         </div>
         <h2 className="text-xl font-bold text-center mb-6">Welcome Back</h2>
-        <p className="text-gray-400 text-center mb-8">
+        <p className="text-muted text-center mb-8">
           Login to continue to your dashboard
         </p>
 
@@ -46,7 +46,7 @@ export default function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 rounded-lg bg-[#222222] border border-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
 
           <input
@@ -55,7 +55,7 @@ export default function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-3 rounded-lg bg-[#222222] border border-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
 
           {error && (
@@ -65,17 +65,17 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+            className="btn w-full"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
-        <div className="flex justify-between mt-6 text-sm text-gray-400">
-          <a href="/signup" className="hover:text-white">
+        <div className="flex justify-between mt-6 text-sm text-muted">
+          <a href="/signup" className="hover:text-text">
             New here? Create an account
           </a>
-          <a href="/forgot-password" className="hover:text-white">
+          <a href="/forgot-password" className="hover:text-text">
             Forgot Password?
           </a>
         </div>

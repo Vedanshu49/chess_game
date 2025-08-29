@@ -74,12 +74,12 @@ export default function Chat({ gameId, user }) {
   };
 
   return (
-    <div className="bg-gray-800 p-4 rounded-md">
-      <h3 className="text-lg font-semibold text-white mb-2">Chat</h3>
-      <div className="h-48 overflow-y-auto mb-4 p-2 bg-gray-900 rounded-md">
+    <div className="bg-panel p-4 rounded-md shadow-lg">
+      <h3 className="text-lg font-semibold text-text mb-2">Chat</h3>
+      <div className="h-48 overflow-y-auto mb-4 p-2 bg-[#222222] rounded-md">
         {messages.map(msg => (
-          <div key={msg.id} className="text-sm text-gray-300 mb-1">
-            <span className="font-semibold text-blue-400">{msg.profile?.username || 'User'}:</span> {msg.message}
+          <div key={msg.id} className="text-sm text-text mb-1">
+            <span className="font-semibold text-accent">{msg.profile?.username || 'User'}:</span> {msg.message}
           </div>
         ))}
         <div ref={messagesEndRef} />

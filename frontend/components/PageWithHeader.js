@@ -7,7 +7,7 @@ export default function PageWithHeader({ user, title, children }) {
   return (
     <>
       <NavBar user={user} />
-      <div className="container mx-auto p-4">
+      <div className="min-h-screen bg-bg text-text container mx-auto p-4">
         <button
           onClick={() => router.push('/dashboard')}
           className="btn mb-4"

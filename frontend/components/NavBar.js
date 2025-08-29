@@ -22,57 +22,57 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-gray-900 px-6 py-4 flex justify-between items-center shadow-md">
+    <nav className="bg-panel px-6 py-4 flex justify-between items-center shadow-md">
       <div className="flex flex-col cursor-pointer" onClick={() => router.push("/dashboard") }>
-        <span className="text-2xl font-bold text-white">♟ Chess App</span>
-        <span className="text-xs text-gray-400 ml-6" style={{lineHeight:'1.1'}}>A project by Vedanshu</span>
+        <span className="text-2xl font-bold text-text">♟ Chess App</span>
+        <span className="text-xs text-muted ml-6" style={{lineHeight:'1.1'}}>A project by Vedanshu</span>
       </div>
       <div class="flex items-center gap-4">
         <button
           onClick={toggleTheme}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           {theme === 'light' ? '🌙' : '☀️'}
         </button>
         <button
           onClick={() => router.push("/profile")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Profile
         </button>
         <button
           onClick={() => router.push("/friends")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Friends
         </button>
         <button
           onClick={() => router.push("/search")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Search
         </button>
         <button
           onClick={() => router.push("/history")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           History
         </button>
         <button
           onClick={() => router.push("/saved-positions")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Saved Positions
         </button>
         <button
           onClick={() => router.push("/leaderboard")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Leaderboard
         </button>
         <button
           onClick={() => router.push("/spectate")}
-          className="text-white hover:text-gray-300 transition"
+          className="text-text hover:text-text transition"
         >
           Spectate
         </button>

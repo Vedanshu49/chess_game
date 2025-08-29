@@ -38,30 +38,32 @@ export default function AuthPage() {
   };
 
   return (
-    <div style={{ maxWidth: "400px", margin: "50px auto", textAlign: "center" }}>
-      <h1>Login / Signup</h1>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ display: "block", margin: "10px auto", padding: "8px" }}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ display: "block", margin: "10px auto", padding: "8px" }}
-      />
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div className="bg-bg text-text min-h-screen flex flex-col items-center justify-center">
+      <div className="p-8 rounded-lg shadow-lg w-full max-w-md bg-panel">
+        <h1 className="text-2xl font-bold mb-6 text-center">Login / Signup</h1>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input mb-4"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="input mb-4"
+        />
+        {error && <p className="text-red-500 mb-4">{error}</p>}
 
-      <button onClick={handleLogin} disabled={loading} style={{ margin: "5px" }}>
-        {loading ? "Logging in..." : "Login"}
-      </button>
-      <button onClick={handleSignup} disabled={loading} style={{ margin: "5px" }}>
-        {loading ? "Signing up..." : "Signup"}
-      </button>
+        <button onClick={handleLogin} disabled={loading} className="btn w-full mb-2">
+          {loading ? "Logging in..." : "Login"}
+        </button>
+        <button onClick={handleSignup} disabled={loading} className="btn w-full">
+          {loading ? "Signing up..." : "Signup"}
+        </button>
+      </div>
     </div>
   );
 }

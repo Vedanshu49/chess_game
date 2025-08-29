@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0b0f14;
-  --panel: #121820;
-  --accent: #3ea6ff;
-  --text: #e5eef7;
-  --muted: #93a4b2;
+  --bg: #1A1A1A;
+  --panel: #2D2D2D;
+  --accent: #63B3ED;
+  --text: #E2E8F0;
+  --muted: #4A5568;
 }
 
 [data-theme='light'] {
@@ -23,7 +23,7 @@ a{ color:var(--accent); text-decoration:none; }
 .container{ @apply max-w-5xl mx-auto p-6; }
 .card{ @apply bg-panel rounded-2xl p-6 shadow-xl; }
 .btn{ @apply bg-accent text-black font-semibold px-4 py-2 rounded-xl hover:opacity-90; }
-.input{ @apply w-full px-4 py-2 rounded-xl bg-[#0e141b] border border-[#233041] outline-none text-text; }
+.input{ @apply w-full px-4 py-2 rounded-xl bg-panel border border-muted outline-none text-text; }
 .nav{ @apply w-full bg-panel sticky top-0 z-10; }
 .nav-inner{ @apply container flex items-center justify-between py-3; }
 

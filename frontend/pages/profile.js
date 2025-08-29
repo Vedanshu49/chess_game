@@ -100,33 +100,33 @@ export default function ProfilePage() {
 
   return (
     <PageWithHeader user={user} title="Profile">
-      <div className="max-w-md mx-auto bg-[#1c2836] rounded-lg shadow-lg p-6">
+      <div className="max-w-md mx-auto bg-panel rounded-lg shadow-lg p-6">
         <div className="flex flex-col items-center mb-6">
           <Avatar
             url={profile.avatar_url}
             size={150}
             onUpload={updateAvatar}
           />
-          <h1 className="text-3xl font-bold text-white text-center mt-4">{profile.username}</h1>
+          <h1 className="text-3xl font-bold text-text text-center mt-4">{profile.username}</h1>
         </div>
         <div className="flex justify-center items-center space-x-4 text-lg mb-6">
           <div className="text-center">
-            <p className="text-gray-400">Rating</p>
-            <p className="text-white font-semibold">{profile.rating}</p>
+            <p className="text-muted">Rating</p>
+            <p className="text-text font-semibold">{profile.rating}</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-gray-400">Wins</p>
+            <p className="text-muted">Wins</p>
             <p className="text-green-500 font-semibold">{profile.wins}</p>
           </div>
           <div>
-            <p className="text-gray-400">Losses</p>
+            <p className="text-muted">Losses</p>
             <p className="text-red-500 font-semibold">{profile.losses}</p>
           </div>
           <div>
-            <p className="text-gray-400">Draws</p>
-            <p className="text-gray-500 font-semibold">{profile.draws}</p>
+            <p className="text-muted">Draws</p>
+            <p className="text-muted font-semibold">{profile.draws}</p>
           </div>
         </div>
         <div className="mt-6">
@@ -138,9 +138,9 @@ export default function ProfilePage() {
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               placeholder="New username"
-              className="flex-1 bg-[#0e141b] rounded-lg px-3 py-2"
+              className="input flex-1"
             />
-            <button type="submit" className="btn bg-blue-600 hover:bg-blue-700">Update</button>
+            <button type="submit" className="btn bg-accent">Update</button>
           </form>
         </div>
       </div>

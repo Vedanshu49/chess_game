@@ -54,21 +54,21 @@ export default function HistoryPage() {
 
   return (
     <PageWithHeader user={user} title="Game History">
-      <div className="bg-[#1c2836] rounded-lg shadow-lg">
-        <ul className="divide-y divide-[#233041]">
+      <div className="bg-panel rounded-lg shadow-lg text-text">
+        <ul className="divide-y divide-muted">
           {games.map(game => (
             <li key={game.id} className="p-4 flex justify-between items-center">
               <div>
                 <p className="font-semibold">
                   {game.creatorProfile?.username || 'Unknown'} vs {game.opponentProfile?.username || 'Unknown'}
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted">
                   {new Date(game.created_at).toLocaleDateString()} - {game.result}
                 </p>
               </div>
               <button
                 onClick={() => router.push(`/game/${game.id}?analysis=true`)}
-                className="btn bg-blue-600 hover:bg-blue-700"
+                className="btn bg-accent"
               >
                 Replay
               </button>
