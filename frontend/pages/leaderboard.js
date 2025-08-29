@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function LeaderboardPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [userRank, setUserRank] = useState(null);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [leaderboardData, setLeaderboardData] = useState([]);
@@ -29,6 +31,21 @@ export default function LeaderboardPage() {
       });
       if (error) throw error;
       setLeaderboardData(data);
+      // Find user's rank if not in top list
+      if (user) {
+        const userEntry = data.find(p => p.username === user.profile?.username);
+        if (!userEntry) {
+          // Fetch user's rank from backend
+          const { data: userData, error: userError } = await supabase.rpc('get_leaderboard_user_rank', {
+            user_id: user.id,
+            time_frame: timeFrame
+          });
+          if (!userError && userData && userData.length > 0) setUserRank(userData[0]);
+          else setUserRank(null);
+        } else {
+          setUserRank(null);
+        }
+      }
     } catch (error) {
       toast.error('Failed to fetch leaderboard: ' + error.message);
     } finally {
@@ -60,6 +77,13 @@ export default function LeaderboardPage() {
         <TimeFrameButton frame="weekly" label="Weekly" />
         <TimeFrameButton frame="monthly" label="Monthly" />
       </div>
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={e => setSearchTerm(e.target.value)}
+        placeholder="Search by username..."
+        className="input mb-4"
+      />
       <div className="bg-panel rounded-lg shadow-lg text-text">
         <table className="w-full text-left">
           <thead className="bg-[#222222]">
@@ -71,7 +95,7 @@ export default function LeaderboardPage() {
             </tr>
           </thead>
           <tbody>
-            {leaderboardData.map((player, index) => (
+            {leaderboardData.filter(player => player.username.toLowerCase().includes(searchTerm.toLowerCase())).map((player, index) => (
               <tr key={player.username} className="border-b border-muted">
                 <td className="p-4">{index + 1}</td>
                 <td className="p-4">{player.username}</td>
@@ -79,6 +103,14 @@ export default function LeaderboardPage() {
                 {timeFrame !== 'all_time' && <td className="p-4">{player.rating}</td>}
               </tr>
             ))}
+            {userRank && (
+              <tr className="bg-yellow-900">
+                <td className="p-4">{userRank.rank}</td>
+                <td className="p-4">{userRank.username} (You)</td>
+                <td className="p-4">{timeFrame === 'all_time' ? userRank.rating : userRank.wins}</td>
+                {timeFrame !== 'all_time' && <td className="p-4">{userRank.rating}</td>}
+              </tr>
+            )}
           </tbody>
         </table>
         {leaderboardData.length === 0 && (

@@ -16,7 +16,8 @@ export default function Avatar({ url, size, onUpload, userId }) {
       if (error) {
         throw error
       }
-      const url = URL.createObjectURL(data)
+      // Add cache-busting query string
+      const url = URL.createObjectURL(data) + `?cb=${Date.now()}`
       setAvatarUrl(url)
     } catch (error) {
       console.error('Error downloading image: ', error.message)

@@ -5,6 +5,9 @@ import { useAuth } from '@/lib/AuthProvider';
 import PageWithHeader from '@/components/PageWithHeader';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import FriendRequestButton from '@/components/FriendRequestButton';
+// Helper component to show friend request status and button
+import React from 'react';
 
 export default function SearchPage() {
   const { user, loading: authLoading } = useAuth();
@@ -50,7 +53,22 @@ export default function SearchPage() {
 
   async function handleSendRequest(friendId) {
     if (!user) return;
+    if (friendId === user.id) {
+      toast.error("You can't send a friend request to yourself.");
+      return;
+    }
     try {
+      // Check for existing requests or friendship
+      const { data: existing, error: existError } = await supabase
+        .from('friends')
+        .select('id, status')
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`);
+      if (existError) throw existError;
+      if (existing && existing.length > 0) {
+        const status = existing[0].status;
+        if (status === 'pending') throw new Error('Friend request already sent or received.');
+        if (status === 'accepted') throw new Error('You are already friends.');
+      }
       const { error } = await supabase.from('friends').insert({
         user_id: user.id,
         friend_id: friendId,
@@ -139,13 +157,14 @@ export default function SearchPage() {
               <div className="flex gap-2">
                 {user?.id !== player.id && (
                   <>
-                    <button onClick={() => handleSendRequest(player.id)} className="btn bg-green-600 hover:bg-green-700">Add Friend</button>
+                    <FriendRequestButton user={user} player={player} handleSendRequest={handleSendRequest} />
                     <button onClick={() => setChallengeModal({ isOpen: true, friendId: player.id, friendUsername: player.username })} className="btn bg-accent">Challenge</button>
                   </>
                 )}
               </div>
             </li>
           ))}
+// ...existing code...
         </ul>
       )}
     </PageWithHeader>

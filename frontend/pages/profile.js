@@ -55,7 +55,7 @@ export default function ProfilePage() {
         .update({ avatar_url: avatarUrl })
         .eq('id', user.id);
       if (error) throw error;
-      setProfile({ ...profile, avatar_url: avatarUrl });
+      await fetchProfile(); // Refresh profile after avatar update
       toast.success('Avatar updated!');
     } catch (error) {
       toast.error('Error updating avatar: ' + error.message);
@@ -74,7 +74,7 @@ export default function ProfilePage() {
         console.error('Supabase update username error:', error);
         throw error;
       }
-      setProfile({ ...profile, username: newUsername.trim() });
+      await fetchProfile(); // Refresh profile after username update
       setNewUsername('');
       toast.success('Username updated!');
     } catch (error) {

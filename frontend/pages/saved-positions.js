@@ -11,6 +11,51 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 const Chessboard = dynamic(() => import('chessboardjsx'), { ssr: false });
 
 export default function SavedPositions() {
+  const [newFen, setNewFen] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [fenError, setFenError] = useState(null);
+
+  function isValidFen(fen) {
+    if (!fen) return false;
+    const rows = fen.split(' ')[0].split('/');
+    if (rows.length !== 8) return false;
+    for (const row of rows) {
+      let count = 0;
+      for (const char of row) {
+        if (/[1-8]/.test(char)) count += parseInt(char);
+        else count += 1;
+      }
+      if (count !== 8) return false;
+    }
+    return true;
+  }
+
+  async function savePosition(e) {
+    e.preventDefault();
+    setFenError(null);
+    if (!isValidFen(newFen)) {
+      setFenError('Invalid FEN. Please enter a valid 8x8 FEN string.');
+      return;
+    }
+    if (positions.some(p => p.fen === newFen)) {
+      setFenError('This position is already saved.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('saved_positions')
+        .insert({ user_id: user.id, fen: newFen });
+      if (error) throw error;
+      toast.success('Position saved!');
+      setNewFen('');
+      fetchSavedPositions();
+    } catch (error) {
+      toast.error('Error saving position: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [positions, setPositions] = useState([]);
@@ -66,6 +111,17 @@ export default function SavedPositions() {
 
   return (
     <PageWithHeader user={user} title="Saved Positions">
+      <form onSubmit={savePosition} className="mb-6 flex gap-2">
+        <input
+          type="text"
+          value={newFen}
+          onChange={e => setNewFen(e.target.value)}
+          placeholder="Enter FEN to save"
+          className="input flex-1"
+        />
+        <button type="submit" className="btn bg-accent" disabled={saving}>Save Position</button>
+      </form>
+      {fenError && <p className="text-red-500 mb-4">{fenError}</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {positions.map(pos => (
           <div key={pos.id} className="card">

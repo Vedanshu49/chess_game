@@ -19,14 +19,61 @@ const Chessboard = dynamic(() => import('../../components/LocalChessboard'), { s
 
 
 export default function GamePage() {
+    // Prevent navigation while game is in progress unless resigned
+    useEffect(() => {
+        if (!gameOver.over) {
+            const handleBeforeUnload = (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            };
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            return () => {
+                window.removeEventListener('beforeunload', handleBeforeUnload);
+            };
+        }
+    }, [gameOver.over]);
+
+    // Block route changes in SPA unless resigned
+    useEffect(() => {
+        if (!gameOver.over) {
+            const handleRouteChange = (url) => {
+                if (url !== router.asPath) {
+                    toast.dismiss();
+                    toast.error('You must resign before leaving the game.');
+                    router.events.emit('routeChangeError');
+                    throw 'Route change blocked.';
+                }
+            };
+            router.events.on('routeChangeStart', handleRouteChange);
+            return () => {
+                router.events.off('routeChangeStart', handleRouteChange);
+            };
+        }
+    }, [gameOver.over, router]);
     const router = useRouter();
     const { id: gameId } = router.query;
     const { user, loading: authLoading } = useAuth();
 
     const [game, setGame] = useState(null);
     const [chess, setChess] = useState(null);
-    const [fen, setFen] = useState('start');
-    const [fenError, setFenError] = useState(null);
+        const [fen, setFen] = useState('start');
+        const [fenError, setFenError] = useState(null);
+
+        // Helper to validate FEN for 8x8 board
+        function isValidFen(fen) {
+            if (!fen) return false;
+            const rows = fen.split(' ')[0].split('/');
+            if (rows.length !== 8) return false;
+            for (const row of rows) {
+                let count = 0;
+                for (const char of row) {
+                    if (/[1-8]/.test(char)) count += parseInt(char);
+                    else count += 1;
+                }
+                if (count !== 8) return false;
+            }
+            return true;
+        }
     const [history, setHistory] = useState([]);
     const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
     const [playerColor, setPlayerColor] = useState(null);
@@ -66,6 +113,7 @@ export default function GamePage() {
 
             setGame(gameData);
             try {
+                if (!isValidFen(gameData.fen)) throw new Error('Invalid FEN');
                 chess.load(gameData.fen);
                 setFen(gameData.fen);
                 setHistory(chess.history({ verbose: true }));
@@ -111,6 +159,7 @@ export default function GamePage() {
                 const newGame = payload.new;
                 setGame(newGame);
                 try {
+                    if (!isValidFen(newGame.fen)) throw new Error('Invalid FEN');
                     chess.load(newGame.fen);
                     setFen(newGame.fen);
                     setHistory(chess.history({ verbose: true }));
@@ -289,7 +338,6 @@ export default function GamePage() {
             <Navbar />
             <Toaster position="top-center" />
             <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row justify-center items-start p-4 gap-6">
-                
                 {/* Left Panel (Player Info) */}
                 <div className="w-full lg:w-64 flex-shrink-0 space-y-4">
                     <PlayerInfo player={blackPlayer} color="b" isTurn={chess?.turn() === 'b'} />
@@ -305,6 +353,14 @@ export default function GamePage() {
                             playerColor={playerColor} 
                         />
                     </div>
+                    {/* Show invite code for private games */}
+                    {game?.invite_code && (
+                        <div className="mt-4 text-center p-4 bg-blue-900 rounded-lg">
+                            <h2 className="text-xl font-bold text-blue-300">Invite Code</h2>
+                            <p className="text-blue-200 text-lg font-mono">{game.invite_code}</p>
+                            <p className="text-blue-100">Share this code with your friend to join the game.</p>
+                        </div>
+                    )}
                     {!bothPlayersJoined && (
                         <div className="mt-4 text-center p-4 bg-yellow-900 rounded-lg">
                             <h2 className="text-2xl font-bold text-yellow-300">Waiting for opponent...</h2>
@@ -314,7 +370,28 @@ export default function GamePage() {
                     {gameOver.over && (
                         <div className="mt-4 text-center p-4 bg-gray-800 rounded-lg">
                             <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
-                            <p>{gameOver.winner ? `${(gameOver.winner === game.creator ? whitePlayer.username : blackPlayer.username)} wins by ${gameOver.reason}!` : `Draw by ${gameOver.reason}!`}</p>
+                            <p>
+                                {(() => {
+                                    if (!gameOver.winner) {
+                                        // Draw or stalemate
+                                        if (gameOver.reason === 'draw') return 'Draw!';
+                                        if (gameOver.reason === 'stalemate') return 'Draw by stalemate!';
+                                        if (gameOver.reason === 'repetition') return 'Draw by repetition!';
+                                        if (gameOver.reason === 'insufficient material') return 'Draw by insufficient material!';
+                                        return `Draw by ${gameOver.reason}!`;
+                                    }
+                                    const winnerIsUser = gameOver.winner === user?.id;
+                                    if (gameOver.reason === 'resignation') {
+                                        return winnerIsUser ? 'You win! Opponent resigned.' : 'You lost. You resigned.';
+                                    }
+                                    if (gameOver.reason === 'checkmate') {
+                                        return winnerIsUser ? 'You win by checkmate!' : 'You lost by checkmate.';
+                                    }
+                                    return winnerIsUser
+                                        ? `You win by ${gameOver.reason}!`
+                                        : `You lost by ${gameOver.reason}.`;
+                                })()}
+                            </p>
                         </div>
                     )}
                 </div>

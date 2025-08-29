@@ -80,6 +80,23 @@ export default function FriendsPage() {
     } catch (error) {
       toast.error('Failed to fetch friends data: ' + error.message);
     } finally {
+        // Remove friend logic - must be above return
+        const handleRemoveFriend = async (friendId) => {
+          if (!user || !friendId) return;
+          if (!window.confirm('Are you sure you want to remove this friend?')) return;
+          try {
+            // Remove both directions of friendship
+            const { error } = await supabase
+              .from('friends')
+              .delete()
+              .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`);
+            if (error) throw error;
+            toast.success('Friend removed.');
+            fetchFriends();
+          } catch (error) {
+            toast.error('Error removing friend: ' + error.message);
+          }
+        };
       setLoading(false);
     }
   }
@@ -93,8 +110,20 @@ export default function FriendsPage() {
         .select('id, email')
         .eq('username', username.trim())
         .single();
-      if (findError) throw new Error('User not found.');
+      if (findError || !friendUser) throw new Error('User not found.');
       if (friendUser.id === user.id) throw new Error("You can't send a friend request to yourself.");
+
+      // Check for existing requests or friendship
+      const { data: existing, error: existError } = await supabase
+        .from('friends')
+        .select('id, status')
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${user.id})`);
+      if (existError) throw existError;
+      if (existing && existing.length > 0) {
+        const status = existing[0].status;
+        if (status === 'pending') throw new Error('Friend request already sent or received.');
+        if (status === 'accepted') throw new Error('You are already friends.');
+      }
 
       const { error: insertError } = await supabase.from('friends').insert({
         user_id: user.id,
@@ -112,6 +141,7 @@ export default function FriendsPage() {
       });
       setUsername('');
       toast.success('Friend request sent!');
+      fetchFriends();
     } catch (error) {
       toast.error(error.message);
     }
@@ -125,6 +155,8 @@ export default function FriendsPage() {
         .eq('id', id);
       if (error) throw error;
       toast.success('Friend request accepted!');
+      // Notification logic (could be email or in-app)
+      fetchFriends();
     } catch (error) {
       toast.error('Error accepting request: ' + error.message);
     }
@@ -138,6 +170,8 @@ export default function FriendsPage() {
         .eq('id', id);
       if (error) throw error;
       toast.success('Friend request rejected.');
+      // Notification logic (could be email or in-app)
+      fetchFriends();
     } catch (error) {
       toast.error('Error rejecting request: ' + error.message);
     }
@@ -228,10 +262,14 @@ export default function FriendsPage() {
           <h2 className="text-xl font-semibold mb-3 text-text">Your Friends ({friends.length})</h2>
           {loading ? <LoadingSpinner /> : (
             <ul className="space-y-2">
+          {/* Removed misplaced handleRemoveFriend definition */}
               {friends.map(friend => (
                 <li key={friend.id} className="bg-[#222222] p-3 rounded-lg flex justify-between items-center text-text">
                   <span>{friend.username}</span>
-                  <button onClick={() => setChallengeModal({ isOpen: true, friendId: friend.id, friendUsername: friend.username })} className="btn bg-accent">Challenge</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setChallengeModal({ isOpen: true, friendId: friend.id, friendUsername: friend.username })} className="btn bg-accent">Challenge</button>
+                    <button onClick={() => handleRemoveFriend(friend.id)} className="btn bg-red-600 hover:bg-red-700">Remove</button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -260,7 +298,7 @@ export default function FriendsPage() {
               {sentRequests.map(req => (
                 <li key={req.id} className="bg-[#222222] p-3 rounded-lg flex justify-between items-center text-text">
                   <span>{req.friend.username}</span>
-                  <span className="text-muted">Pending</span>
+                  <span className="text-muted">{req.status === 'pending' ? 'Pending' : req.status === 'accepted' ? 'Accepted' : req.status === 'declined' ? 'Declined' : req.status}</span>
                 </li>
               ))}
             </ul>

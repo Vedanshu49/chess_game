@@ -1,0 +1,21 @@
+1 In all modes the chess board is of 8 by 4 insted of 8 by 8.
+
+2 in "Create Private Game (vs Friend)" add a place where we can see the code and give it to the friend for inviting them.
+
+3 when a person is in a game and playing but he can still switch between pages which should not happen. he has to resign for switching between pages
+
+4 "Matchmaking error: Could not find the function public.matchmake_or_create_game(player_id) in the schema cache" error comes when clicked on "Play Online (Matchmaking)". i assume there is some error with code. ask question for geting related info for knowing what exactily issue is.
+
+5 in all modes when user 1 resigns then user 2 wins but when user 1 resigns on user 2 it shounld show that they have won, with reason of winning (like if opponent resigns so write oppoent resigned, if due to checkmate then say due to checkmate.)
+
+6 in "https://chess-game-psi-plum.vercel.app/profile" when a user uploads a prifile pic, he choes the pic and clicked upload then it stucks on uploading. and the change username is also not working.
+
+7 in "https://chess-game-psi-plum.vercel.app/friends" when trying to send friend request it is not working. and also if fixing then build the logic for reciveing the request and accepting or decling request and add functions of friends same like other website has (make it full proof).
+
+8 "https://chess-game-psi-plum.vercel.app/search" this is aslo not working. create logic for this also same as other website have. (make it full proof)
+
+9 "https://chess-game-psi-plum.vercel.app/saved-positions" this is aslo not working. create logic for this also same as other website have. (make it full proof)
+
+10. "https://chess-game-psi-plum.vercel.app/leaderboard" this is aslo not working. create logic for this also same as other website have. (make it full proof)
+
+11 "https://chess-game-psi-plum.vercel.app/spectate" this is aslo not working. create logic for this also same as other website have. (make it full proof)
