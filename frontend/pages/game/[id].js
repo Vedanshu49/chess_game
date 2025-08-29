@@ -208,6 +208,38 @@ export default function GamePage() {
     }, [fen, playerColor, chess]);
 
 
+    const updateBackendWithMove = useCallback(async (move) => {
+        const newFen = chess.fen();
+        let newStatus = game.status;
+        let winner = null;
+        let winner_reason = null;
+
+        if (chess.isGameOver()) {
+            newStatus = 'finished';
+            if (chess.isCheckmate()) winner_reason = 'checkmate';
+            else if (chess.isStalemate()) winner_reason = 'stalemate';
+            else if (chess.isDraw()) winner_reason = 'draw';
+            else if (chess.isThreefoldRepetition()) winner_reason = 'repetition';
+            else if (chess.isInsufficientMaterial()) winner_reason = 'insufficient material';
+            
+            if (winner_reason !== 'draw' && winner_reason !== 'stalemate') {
+                winner = move.color === 'w' ? game.creator : game.opponent;
+            }
+        }
+
+        const { error } = await supabase
+            .from('games')
+            .update({ fen: newFen, last_move_at: new Date().toISOString(), status: newStatus, winner, winner_reason })
+            .eq('id', gameId);
+
+        if (error) {
+            toast.dismiss();
+            toast.error('Failed to save move. Reverting.');
+            chess.undo();
+            setFen(chess.fen());
+        }
+    }, [chess, game, gameId, setFen]);
+
     const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
         if (!chess || !isMyTurn || gameOver.over) return;
 
@@ -261,47 +293,15 @@ export default function GamePage() {
             toast.dismiss();
             toast.error("Unexpected error during move: " + (err.message || err));
         }
-    }, [chess, isMyTurn, gameOver.over, playerColor]);
+    }, [chess, isMyTurn, gameOver.over, playerColor, updateBackendWithMove]);
 
-    const handlePromotion = (promotionPiece) => {
+    const handlePromotion = useCallback((promotionPiece) => {
         if (!chess || !pendingMove) return;
         const result = chess.move({ ...pendingMove, promotion: promotionPiece });
         if (result) updateBackendWithMove(result);
         setShowPromotionModal(false);
         setPendingMove(null);
-    };
-
-    const updateBackendWithMove = async (move) => {
-        const newFen = chess.fen();
-        let newStatus = game.status;
-        let winner = null;
-        let winner_reason = null;
-
-        if (chess.isGameOver()) {
-            newStatus = 'finished';
-            if (chess.isCheckmate()) winner_reason = 'checkmate';
-            else if (chess.isStalemate()) winner_reason = 'stalemate';
-            else if (chess.isDraw()) winner_reason = 'draw';
-            else if (chess.isThreefoldRepetition()) winner_reason = 'repetition';
-            else if (chess.isInsufficientMaterial()) winner_reason = 'insufficient material';
-            
-            if (winner_reason !== 'draw' && winner_reason !== 'stalemate') {
-                winner = move.color === 'w' ? game.creator : game.opponent;
-            }
-        }
-
-        const { error } = await supabase
-            .from('games')
-            .update({ fen: newFen, last_move_at: new Date().toISOString(), status: newStatus, winner, winner_reason })
-            .eq('id', gameId);
-
-        if (error) {
-            toast.dismiss();
-            toast.error('Failed to save move. Reverting.');
-            chess.undo();
-            setFen(chess.fen());
-        }
-    };
+    }, [chess, pendingMove, updateBackendWithMove]);
 
     const handleResign = async () => {
         if (gameOver.over || !window.confirm('Are you sure you want to resign?')) return;
