@@ -9,6 +9,7 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 export default function LocalChessboard({ fen, onMove }) {
   const boardRef = useRef(null);
   const [boardWidth, setBoardWidth] = useState(0);
+  const [selectedSquare, setSelectedSquare] = useState(null); // New state for click-to-move
 
   useEffect(() => {
     const handleResize = () => {
@@ -23,12 +24,24 @@ export default function LocalChessboard({ fen, onMove }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const handleSquareClick = (square) => {
+    if (selectedSquare) {
+      // Second click: attempt to move
+      onMove({ sourceSquare: selectedSquare, targetSquare: square });
+      setSelectedSquare(null); // Clear selection
+    } else {
+      // First click: select the square
+      setSelectedSquare(square);
+    }
+  };
+
   return (
     <div ref={boardRef} className="w-full h-full">
       {boardWidth > 0 && (
         <Chessboard
           position={fen}
           onDrop={onMove}
+          onSquareClick={handleSquareClick} // Add onSquareClick handler
           draggable={true}
           width={boardWidth}
           boardStyle={{

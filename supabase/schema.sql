@@ -27,7 +27,8 @@ create table if not exists public.games (
   last_move_at timestamptz not null default now(),
   result text,                                      -- "1-0","0-1","1/2-1/2"
   pgn text,                                         -- final PGN on end
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  winner uuid references public.profiles(id) on delete set null
 );
 
 -- Move logs: canonical move history

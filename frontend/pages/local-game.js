@@ -72,6 +72,42 @@ export default function LocalGamePage() {
     loadChess();
   }, []);
 
+  useEffect(() => {
+    if (gameStatus === 'in_progress') {
+      const timer = setInterval(() => {
+        const now = Date.now();
+        const timeDiff = (now - lastMoveTime) / 1000;
+
+        if (chess) {
+          if (chess.turn() === 'w') {
+            setWhiteTime(prev => {
+              const newTime = prev - timeDiff;
+              if (newTime <= 0) {
+                setGameStatus('timeout');
+                toast.success('Time out! Black wins!');
+                return 0;
+              }
+              return newTime;
+            });
+          } else {
+            setBlackTime(prev => {
+              const newTime = prev - timeDiff;
+              if (newTime <= 0) {
+                setGameStatus('timeout');
+                toast.success('Time out! White wins!');
+                return 0;
+              }
+              return newTime;
+            });
+          }
+        }
+        setLastMoveTime(now);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [gameStatus, lastMoveTime, chess]);
+
   const handleMove = async ({ sourceSquare, targetSquare }) => {
     if (!chess || gameStatus !== 'in_progress') return;
 
@@ -120,6 +156,7 @@ export default function LocalGamePage() {
 
     } catch (error) {
       console.error('Error during move:', error);
+      console.error('Source Square:', sourceSquare, 'Target Square:', targetSquare);
       toast.error('An unexpected error occurred during move.');
     }
   };

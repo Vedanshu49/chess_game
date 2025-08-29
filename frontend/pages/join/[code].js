@@ -21,7 +21,7 @@ export default function Join(){
       }
       // set opponent and start
       const { error:upErr } = await supabase.from('games')
-        .update({ opponent: auth.user.id, status: 'in_progress' })
+        .update({ opponent: auth.user.id, status: 'in_progress', players_joined: game.players_joined + 1 })
         .eq('id', game.id)
       if(upErr){ alert(upErr.message); r.replace('/dashboard'); return }
       r.replace(`/game/${game.id}`)
