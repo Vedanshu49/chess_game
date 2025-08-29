@@ -1,485 +1,305 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabasejs";
-import Navbar from "../../components/NavBar";
+import { useAuth } from "@/lib/AuthProvider";
 import dynamic from 'next/dynamic';
 import toast, { Toaster } from 'react-hot-toast';
 import { Chess } from 'chess.js';
+import Navbar from "../../components/NavBar";
 import CapturedPieces from "../../components/CapturedPieces";
 import MoveList from "../../components/MoveList";
 import Timer from "../../components/Timer";
 import Chat from "../../components/Chat";
+import PromotionModal from "../../components/PromotionModal";
+import GameSkeleton from "../../components/GameSkeleton";
 
-const LocalChessboard = dynamic(() => import('../../components/LocalChessboard'), { ssr: false });
+const Chessboard = dynamic(() => import('../../components/LocalChessboard'), { ssr: false });
 
-const initialPieces = {
-  p: 8, r: 2, n: 2, b: 2, q: 1, k: 1
-};
+const initialPieces = { p: 8, r: 2, n: 2, b: 2, q: 1 };
 
 function calculateCapturedPieces(fen) {
-  const captured = { w: {}, b: {} };
-  if (!fen) return captured;
-
-  const piecesOnBoard = {
-    w: { p: 0, r: 0, n: 0, b: 0, q: 0, k: 0 },
-    b: { p: 0, r: 0, n: 0, b: 0, q: 0, k: 0 },
-  };
-
-  fen.split(' ')[0].split('/').forEach(row => {
-    for (const char of row) {
-      if (isNaN(parseInt(char))) { // if it is a piece
-        const color = char === char.toUpperCase() ? 'w' : 'b';
-        const piece = char.toLowerCase();
-        if (piecesOnBoard[color][piece] !== undefined) {
-          piecesOnBoard[color][piece]++;
+    const captured = { w: {}, b: {} };
+    if (!fen) return captured;
+    const piecesOnBoard = { w: { p: 0, r: 0, n: 0, b: 0, q: 0 }, b: { p: 0, r: 0, n: 0, b: 0, q: 0 } };
+    fen.split(' ')[0].replace(/\d/g, '').split('/').forEach(row => {
+        for (const char of row) {
+            const color = char === char.toUpperCase() ? 'w' : 'b';
+            const piece = char.toLowerCase();
+            if (piecesOnBoard[color][piece] !== undefined) piecesOnBoard[color][piece]++;
         }
-      }
+    });
+    for (const color of ['w', 'b']) {
+        for (const piece in initialPieces) {
+            const diff = initialPieces[piece] - (piecesOnBoard[color][piece] || 0);
+            if (diff > 0) captured[color][piece] = diff;
+        }
     }
-  });
-
-  for (const color of ['w', 'b']) {
-    for (const piece in initialPieces) {
-      const diff = initialPieces[piece] - piecesOnBoard[color][piece];
-      if (diff > 0) {
-        captured[color][piece] = diff;
-      }
-    }
-  }
-
-  return captured;
+    return captured;
 }
 
 export default function GamePage() {
-  const router = useRouter();
-  const { id: gameId } = router.query;
-  const [user, setUser] = useState(null);
-  const [game, setGame] = useState(null);
-  const [chess, setChess] = useState(null);
-  const [fen, setFen] = useState('start');
-  const [loading, setLoading] = useState(true);
-  const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
-  const [history, setHistory] = useState([]);
-  const [whiteTime, setWhiteTime] = useState(600);
-  const [blackTime, setBlackTime] = useState(600);
-  const [lastMoveTime, setLastMoveTime] = useState(Date.now());
-  const [showPromotionModal, setShowPromotionModal] = useState(false);
-  const [promotionMove, setPromotionMove] = useState(null); // To store { from, to }
+    const router = useRouter();
+    const { id: gameId } = router.query;
+    const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    const loadChess = async () => {
-      const { Chess } = await import('chess.js');
-      setChess(new Chess());
-    };
-    loadChess();
-  }, []);
+    const [game, setGame] = useState(null);
+    const [chess, setChess] = useState(null);
+    const [fen, setFen] = useState('start');
+    const [history, setHistory] = useState([]);
+    const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
+    const [playerColor, setPlayerColor] = useState(null);
+    const [isMyTurn, setIsMyTurn] = useState(false);
+    const [gameOver, setGameOver] = useState({ over: false, reason: '', winner: null });
 
-  const loadGame = useCallback(async (session) => {
-    if (!gameId) return;
+    const [showPromotionModal, setShowPromotionModal] = useState(false);
+    const [pendingMove, setPendingMove] = useState(null);
 
-    try {
-      const { data: gameData, error } = await supabase
-        .from('games')
-        .select('*, players_joined') // Include players_joined
-        .eq('id', gameId)
-        .single();
+    const [whitePlayer, setWhitePlayer] = useState(null);
+    const [blackPlayer, setBlackPlayer] = useState(null);
 
-      if (error || !gameData) {
-        toast.error('Game not found or an error occurred.');
-        router.replace('/dashboard');
-        return;
-      }
+    const [pageLoading, setPageLoading] = useState(true);
 
-      setGame(gameData);
-      setFen(gameData.fen);
-      setCapturedPieces(calculateCapturedPieces(gameData.fen));
-      setWhiteTime(gameData.white_time_left);
-      setBlackTime(gameData.black_time_left);
-      setLastMoveTime(new Date(gameData.last_move_at).getTime());
+    // Initialize chess.js
+    useEffect(() => {
+        setChess(new Chess());
+    }, []);
 
-      if (chess) {
-        chess.load(gameData.fen);
-        setHistory(chess.history());
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading game:", error);
-      toast.error("Failed to load game data.");
-      router.replace('/dashboard');
-    }
-  }, [gameId, router, chess]);
+    // Fetch game and player data
+    const fetchGameData = useCallback(async () => {
+        if (!gameId || !user || !chess) return;
 
-  useEffect(() => {
-    async function loadUser() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace("/login");
-      } else {
-        setUser(session.user);
-        loadGame(session);
-      }
-    }
-    loadUser();
-  }, [router, loadGame]);
+        try {
+            const { data: gameData, error } = await supabase
+                .from('games')
+                .select('*, creator_profile:profiles!creator(username, rating), opponent_profile:profiles!opponent(username, rating)')
+                .eq('id', gameId)
+                .single();
 
-  useEffect(() => {
-    if (!gameId) return;
+            if (error || !gameData) {
+                toast.error('Game not found.');
+                router.replace('/dashboard');
+                return;
+            }
 
-    const channel = supabase
-      .channel(`game:${gameId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, (payload) => {
-        const newGame = payload.new;
-        setGame(newGame);
-        setFen(newGame.fen);
-        setCapturedPieces(calculateCapturedPieces(newGame.fen));
-        setWhiteTime(newGame.white_time_left);
-        setBlackTime(newGame.black_time_left);
-        setLastMoveTime(new Date(newGame.last_move_at).getTime());
-        if (chess) {
-          chess.load(newGame.fen);
-          setHistory(chess.history());
+            setGame(gameData);
+            setFen(gameData.fen);
+            chess.load(gameData.fen);
+            setHistory(chess.history({ verbose: true }));
+            setCapturedPieces(calculateCapturedPieces(gameData.fen));
+
+            const userIsCreator = gameData.creator === user.id;
+            const userIsOpponent = gameData.opponent === user.id;
+            const color = userIsCreator ? 'w' : (userIsOpponent ? 'b' : null);
+            setPlayerColor(color);
+
+            setWhitePlayer(gameData.creator_profile || { username: 'Player 1' });
+            setBlackPlayer(gameData.opponent_profile || { username: 'Waiting...' });
+
+            if (gameData.status === 'finished') {
+                setGameOver({ over: true, reason: gameData.winner_reason, winner: gameData.winner });
+            }
+
+        } catch (err) {
+            console.error("Error fetching game data:", err);
+            toast.error("Failed to load game.");
+        } finally {
+            setPageLoading(false);
+        }
+    }, [gameId, user, chess, router]);
+
+    useEffect(() => {
+        if (!authLoading) fetchGameData();
+    }, [authLoading, fetchGameData]);
+
+    // Real-time subscription
+    useEffect(() => {
+        if (!gameId || !chess) return;
+
+        const channel = supabase
+            .channel(`game:${gameId}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, 
+            async (payload) => {
+                const newGame = payload.new;
+                setGame(newGame);
+                setFen(newGame.fen);
+                chess.load(newGame.fen);
+                setHistory(chess.history({ verbose: true }));
+                setCapturedPieces(calculateCapturedPieces(newGame.fen));
+
+                // Fetch opponent profile if they just joined
+                if (payload.old.opponent === null && newGame.opponent !== null) {
+                    const { data: opponentProfile } = await supabase.from('profiles').select('username, rating').eq('id', newGame.opponent).single();
+                    setBlackPlayer(opponentProfile || { username: 'Player 2' });
+                }
+
+                if (newGame.status === 'finished') {
+                    setGameOver({ over: true, reason: newGame.winner_reason, winner: newGame.winner });
+                    const winnerUsername = newGame.winner === newGame.creator ? whitePlayer.username : blackPlayer.username;
+                    let message = `Game over! ${winnerUsername} wins by ${newGame.winner_reason}.`;
+                    if (newGame.winner === user?.id) {
+                        toast.success(message);
+                    } else {
+                        toast.error(message);
+                    }
+                }
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [gameId, chess, user, whitePlayer, blackPlayer]);
+
+    // Update whose turn it is
+    useEffect(() => {
+        if (!chess || !playerColor) return;
+        setIsMyTurn(chess.turn() === playerColor);
+    }, [fen, playerColor, chess]);
+
+
+    const handleMove = useCallback((sourceSquare, targetSquare) => {
+        if (!chess || !isMyTurn || gameOver.over) return;
+
+        const moves = chess.moves({ square: sourceSquare, verbose: true });
+        const move = moves.find(m => m.to === targetSquare);
+
+        if (!move) {
+            toast.error("Invalid Move!");
+            return;
         }
 
-        // --- NEW LOGIC FOR GAME END ---
-        if (newGame.status === 'finished') {
-          if (user && newGame.winner === user.id) {
-            toast.success('You Win! Opponent Resigned.');
-          } else if (user && newGame.winner !== user.id) {
-            // This case is for the player who did NOT resign but lost (e.g., opponent resigned)
-            // The resigning player already gets a toast from handleResign
-            toast.error('You Lost! Opponent Resigned.');
-          }
-          // Optionally, disable further moves or show a game over screen
-          // This will be handled by conditional rendering in the JSX
+        // Is it a promotion?
+        if (move.flags.includes('p')) {
+            setPendingMove({ from: sourceSquare, to: targetSquare });
+            setShowPromotionModal(true);
+            return;
         }
-        // --- END NEW LOGIC ---
 
-      })
-      .subscribe();
+        // Make the move
+        const result = chess.move({ from: sourceSquare, to: targetSquare });
+        if (result) updateBackendWithMove(result);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [gameId, chess, user]);
+    }, [chess, isMyTurn, gameOver.over]);
 
-  useEffect(() => {
-    if (chess && fen) {
-      try {
-        chess.load(fen);
-        setHistory(chess.history());
-      } catch (e) {
-        console.error("Error loading FEN into chess.js for history:", e);
-      }
-    }
-  }, [chess, fen]);
-
-  // Navigation Guard
-  useEffect(() => {
-    const warnBeforeLeaving = (e) => {
-      if (game && game.status === 'in_progress') {
-        const confirmationMessage = 'You have an active game. Are you sure you want to leave?';
-        e.returnValue = confirmationMessage; // Standard for browser confirmation
-        return confirmationMessage; // For some older browsers
-      }
+    const handlePromotion = (promotionPiece) => {
+        if (!chess || !pendingMove) return;
+        const result = chess.move({ ...pendingMove, promotion: promotionPiece });
+        if (result) updateBackendWithMove(result);
+        setShowPromotionModal(false);
+        setPendingMove(null);
     };
 
-    const handleRouteChangeStart = (url) => {
-      if (game && game.status === 'in_progress') {
-        // If the user is trying to navigate away from the game page
-        // and the game is in progress, show a confirmation.
-        // This will prevent navigation if the user cancels the confirm.
-        if (!window.confirm('You have an active game. Are you sure you want to leave?')) {
-          router.events.emit('routeChangeError'); // Prevent route change
-          throw 'routeChange aborted.'; // Throw to stop the navigation
+    const updateBackendWithMove = async (move) => {
+        const newFen = chess.fen();
+        let newStatus = game.status;
+        let winner = null;
+        let winner_reason = null;
+
+        if (chess.isGameOver()) {
+            newStatus = 'finished';
+            if (chess.isCheckmate()) winner_reason = 'checkmate';
+            else if (chess.isStalemate()) winner_reason = 'stalemate';
+            else if (chess.isDraw()) winner_reason = 'draw';
+            else if (chess.isThreefoldRepetition()) winner_reason = 'repetition';
+            else if (chess.isInsufficientMaterial()) winner_reason = 'insufficient material';
+            
+            if (winner_reason !== 'draw' && winner_reason !== 'stalemate') {
+                winner = move.color === 'w' ? game.creator : game.opponent;
+            }
         }
-      }
-    };
 
-    // Add event listeners
-    window.addEventListener('beforeunload', warnBeforeLeaving);
-    router.events.on('routeChangeStart', handleRouteChangeStart);
-
-    // Clean up event listeners on component unmount
-    return () => {
-      window.removeEventListener('beforeunload', warnBeforeLeaving);
-      router.events.off('routeChangeStart', handleRouteChangeStart);
-    };
-  }, [game, router]); // Depend on 'game' to react to status changes, and 'router'
-
-  const handleMove = async ({ sourceSquare, targetSquare }) => {
-    if (!chess || !game || !user) return;
-
-    const isWhite = game.creator === user.id;
-    const isBlack = game.opponent === user.id;
-
-    if ((chess.turn() === 'w' && !isWhite) || (chess.turn() === 'b' && !isBlack)) {
-      toast.error("It's not your turn!");
-      return;
-    }
-
-    const piece = chess.get(sourceSquare);
-    const targetRank = targetSquare[1];
-    const isPawn = piece && piece.type === 'p';
-    const isPromotionRank = (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
-
-    // Check for promotion scenario first
-    if (isPawn && isPromotionRank) {
-      // Temporarily try the move to see if it's legal without promotion specified
-      // If it's not legal, it means promotion is required.
-      // This is a bit of a hack, but chess.js doesn't have a direct "isPromotionRequired" method.
-      let tempMove = null;
-      try {
-        tempMove = chess.move({ from: sourceSquare, to: targetSquare });
-        chess.undo(); // Undo the temporary move
-      } catch (e) {
-        // This catch block is for chess.js errors, not invalid moves
-      }
-
-      if (tempMove === null) {
-        // Promotion is required
-        setPromotionMove({ sourceSquare, targetSquare });
-        setShowPromotionModal(true);
-        return; // Stop handleMove here, wait for promotion selection
-      }
-    }
-
-    // If not a promotion, or if it's a promotion that doesn't require a choice (e.g., only one legal promotion)
-    try {
-      const move = chess.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q', // Default to queen if not a promotion requiring choice
-      });
-
-      if (move === null) {
-        toast.error('Invalid move! Please check piece movement rules, blocked paths, or if your King is in check.');
-        return;
-      }
-
-      const newFen = chess.fen();
-      const newHistory = chess.history();
-      const moveTime = Date.now();
-      const timeDiff = (moveTime - lastMoveTime) / 1000;
-      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
-      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
-
-      setFen(newFen);
-      setCapturedPieces(calculateCapturedPieces(newFen));
-      setHistory(newHistory);
-      setWhiteTime(newWhiteTime);
-      setBlackTime(newBlackTime);
-      setLastMoveTime(moveTime);
-
-      const { error } = await supabase
-        .from('games')
-        .update({
-          fen: newFen,
-          white_time_left: newWhiteTime,
-          black_time_left: newBlackTime,
-          last_move_at: new Date(moveTime).toISOString(),
-        })
-        .eq('id', gameId);
-
-      if (error) {
-        toast.error('Error saving move: ' + error.message);
-        chess.undo();
-        setFen(chess.fen());
-        setCapturedPieces(calculateCapturedPieces(chess.fen()));
-        setHistory(chess.history());
-      }
-    } catch (error) {
-      console.log('Invalid move:', error);
-      toast.error('An unexpected error occurred.');
-    }
-  };
-
-  const handlePromotion = async (promotedPiece) => {
-    if (!chess || !game || !user || !promotionMove) return;
-
-    setShowPromotionModal(false); // Hide modal
-
-    try {
-      const move = chess.move({
-        from: promotionMove.sourceSquare,
-        to: promotionMove.targetSquare,
-        promotion: promotedPiece,
-      });
-
-      if (move === null) {
-        toast.error('Invalid promotion move!');
-        return;
-      }
-
-      const newFen = chess.fen();
-      const newHistory = chess.history();
-      const moveTime = Date.now();
-      const timeDiff = (moveTime - lastMoveTime) / 1000;
-      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
-      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
-
-      setFen(newFen);
-      setCapturedPieces(calculateCapturedPieces(newFen));
-      setHistory(newHistory);
-      setWhiteTime(newWhiteTime);
-      setBlackTime(newBlackTime);
-      setLastMoveTime(moveTime);
-
-      const { error } = await supabase
-        .from('games')
-        .update({
-          fen: newFen,
-          white_time_left: newWhiteTime,
-          black_time_left: newBlackTime,
-          last_move_at: new Date(moveTime).toISOString(),
-        })
-        .eq('id', gameId);
-
-      if (error) {
-        toast.error('Error saving move: ' + error.message);
-        chess.undo();
-        setFen(chess.fen());
-        setCapturedPieces(calculateCapturedPieces(chess.fen()));
-        setHistory(chess.history());
-      }
-    } catch (error) {
-      console.log('Error during promotion:', error);
-      toast.error('An unexpected error occurred during promotion.');
-    } finally {
-      setPromotionMove(null); // Clear promotion move details
-    }
-  };
-
-  const handleResign = async () => {
-    if (!game || !user) return;
-
-    if (window.confirm('Are you sure you want to resign?')) {
-      const winner = game.creator === user.id ? game.opponent : game.creator;
-      try {
         const { error } = await supabase
-          .from('games')
-          .update({ status: 'finished', winner: winner, winner_reason: 'resignation' }) // Added winner_reason
-          .eq('id', gameId);
+            .from('games')
+            .update({ fen: newFen, last_move_at: new Date().toISOString(), status: newStatus, winner, winner_reason })
+            .eq('id', gameId);
 
         if (error) {
-          toast.error('Error resigning: ' + error.message);
-        } else {
-          toast.success('You have resigned. The opponent wins.');
+            toast.error('Failed to save move. Reverting.');
+            chess.undo();
+            setFen(chess.fen());
         }
-      } catch (error) {
-        console.error("Error resigning:", error);
-        toast.error("An unexpected error occurred during resignation.");
-      }
+    };
+
+    const handleResign = async () => {
+        if (gameOver.over || !window.confirm('Are you sure you want to resign?')) return;
+
+        const winner = playerColor === 'w' ? game.opponent : game.creator;
+        const { error } = await supabase
+            .from('games')
+            .update({ status: 'finished', winner: winner, winner_reason: 'resignation' })
+            .eq('id', gameId);
+
+        if (error) toast.error('Error resigning: ' + error.message);
+    };
+
+    if (pageLoading || authLoading) {
+        return <GameSkeleton />;
     }
-  };
 
-  if (loading) {
-    return (
-      <>
-        <Navbar />
-        <div className="min-h-screen bg-bg text-text flex flex-col items-center justify-center">
-          <div className="text-lg">Loading Game...</div>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Navbar />
-      <div className="min-h-screen bg-bg text-text flex flex-col lg:flex-row lg:justify-center lg:items-start p-4 gap-4">
-        {/* Chessboard Section */}
-        <div className="flex-grow flex justify-center items-center">
-          <div className="w-[90vh] max-w-[90vw] aspect-square shadow-lg rounded-lg overflow-hidden">
-            <LocalChessboard fen={fen} onMove={handleMove} />
-          </div>
-        </div>
-
-        {/* Sidebar Section */}
-        <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-4">
-          {/* Game Info Panel */}
-          <div className="bg-panel p-4 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold mb-4">Game Info</h2>
-            <div className="space-y-4">
-              {game?.status === 'finished' ? (
-                <div className="text-center text-2xl font-bold text-accent">
-                  Game Over! {game.winner === user?.id ? 'You Win!' : 'You Lost!'}
-                  {game.winner === user?.id && game.status === 'finished' && game.winner_reason === 'resignation' && (
-                    <p className="text-lg text-text">Opponent Resigned</p>
-                  )}
-                  {/* Add more reasons here if available in game object */}
+    const PlayerInfo = ({ player, color, isTurn }) => (
+        <div className={`p-3 rounded-lg ${isTurn ? 'bg-blue-600' : 'bg-gray-700'} transition-colors duration-300`}>
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-800 rounded-full"></div> {/* Placeholder for Avatar */}
+                <div>
+                    <h3 className="font-bold text-lg">{player?.username || '...'}</h3>
+                    <p className="text-sm text-gray-300">Rating: {player?.rating || 'N/A'}</p>
                 </div>
-              ) : game?.players_joined < 2 ? (
-                <div className="text-center text-lg font-semibold text-accent">
-                  Waiting for opponent...
-                </div>
-              ) : (
-                <> 
-                  <Timer initialTime={blackTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'b'} />
-                  <Timer initialTime={whiteTime} isRunning={game?.players_joined === 2 && game.status === 'in_progress' && chess?.turn() === 'w'} />
-                </>
-              )}
-
-              {game?.invite_code && game?.players_joined < 2 && (
-                <div className="text-center bg-accent p-2 rounded-md">
-                  <p className="text-text font-semibold">Invite Code:</p>
-                  <p className="text-3xl font-bold text-accent">{game.invite_code}</p>
-                  <p className="text-sm text-muted">Share this code with your friend!</p>
-                </div>
-              )}
-
-              <CapturedPieces captured={capturedPieces.b} color="white" />
-              <CapturedPieces captured={capturedPieces.w} color="black" />
-              {/* MoveList will go here */}
-              {/* Chat will go here */}
-              <div>
-                <h3 className="font-bold">Status</h3>
-                <p>{game.status}</p>
-              </div>
-              <div>
-                <h3 className="font-bold">Turn</h3>
-                <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
-              </div>
-              <div>
-                <h3 className="font-bold">Players</h3>
-                <p className={chess && chess.turn() === 'w' ? 'text-accent font-semibold' : ''}>White: {game.creator_username || 'Player 1'}</p>
-                <p className={chess && chess.turn() === 'b' ? 'text-accent font-semibold' : ''}>Black: {game.opponent_username || 'Player 2'}</p>
-              </div>
-              {game.status === 'local' && (
-                <button
-                  className="btn w-full mt-4"
-                  onClick={() => router.push('/dashboard')}
-                >
-                  Leave Match
-                </button>
-              )}
-              {game.status === 'in_progress' && (
-                <button
-                  className="btn w-full mt-4 bg-red-600 hover:bg-red-700"
-                  onClick={handleResign}
-                >
-                  Resign
-                </button>
-              )}
             </div>
-          </div>
-          {user && <Chat gameId={gameId} user={user} />} {/* Chat moved outside Game Info Panel */}
-          <MoveList history={history} /> {/* MoveList moved outside Game Info Panel */}
+            <Timer initialTime={color === 'w' ? game.white_time_left : game.black_time_left} isRunning={!gameOver.over && isTurn} />
+            <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
         </div>
-      </div>
-      {showPromotionModal && promotionMove && (
-        <PromotionModal
-          onSelectPromotion={handlePromotion}
-          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
-        />
-      )}
-    </>
-  );
-}
-      {showPromotionModal && promotionMove && (
-        <PromotionModal
-          onSelectPromotion={handlePromotion}
-          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
-        />
-      )}
-    </>
-  );
+    );
+
+    return (
+        <>
+            <Navbar />
+            <Toaster position="bottom-center" />
+            <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row justify-center items-start p-4 gap-6">
+                
+                {/* Left Panel (Player Info) */}
+                <div className="w-full lg:w-64 flex-shrink-0 space-y-4">
+                    <PlayerInfo player={blackPlayer} color="b" isTurn={chess?.turn() === 'b'} />
+                </div>
+
+                {/* Center Panel (Chessboard) */}
+                <div className="flex-grow flex flex-col items-center">
+                    <div className="w-full max-w-[75vh] aspect-square shadow-lg rounded-lg overflow-hidden">
+                        <Chessboard 
+                            fen={fen} 
+                            onMove={handleMove} 
+                            turn={chess?.turn()} 
+                            playerColor={playerColor} 
+                        />
+                    </div>
+                    {gameOver.over && (
+                        <div className="mt-4 text-center p-4 bg-gray-800 rounded-lg">
+                            <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
+                            <p>{gameOver.winner ? `${(gameOver.winner === game.creator ? whitePlayer.username : blackPlayer.username)} wins by ${gameOver.reason}!` : `Draw by ${gameOver.reason}!`}</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Panel (Game Controls & Info) */}
+                <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-4">
+                    <PlayerInfo player={whitePlayer} color="w" isTurn={chess?.turn() === 'w'} />
+                    <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+                        <h2 className="text-xl font-bold mb-2">Moves</h2>
+                        <MoveList history={history} />
+                    </div>
+                    <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+                        <h2 className="text-xl font-bold mb-2">Chat</h2>
+                        {user && <Chat gameId={gameId} user={user} />} 
+                    </div>
+                    {!gameOver.over && isMyTurn && (
+                        <button className="btn btn-danger w-full" onClick={handleResign}>Resign</button>
+                    )}
+                </div>
+
+            </div>
+            {showPromotionModal && (
+                <PromotionModal 
+                    onSelect={handlePromotion} 
+                    color={playerColor} 
+                />
+            )}
+        </>
+    );
 }

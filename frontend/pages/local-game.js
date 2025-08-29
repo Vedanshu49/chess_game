@@ -111,141 +111,94 @@ export default function LocalGamePage() {
     }
   }, [gameStatus, lastMoveTime, chess]);
 
-  const handleMove = async ({ sourceSquare, targetSquare }) => {
+  const handleMove = useCallback((sourceSquare, targetSquare) => {
     if (!chess || gameStatus !== 'in_progress') return;
 
     const piece = chess.get(sourceSquare);
-    const targetRank = targetSquare[1];
-    const isPawn = piece && piece.type === 'p';
-    const isPromotionRank = (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
+    if (!piece) return;
 
-    // Check for promotion scenario first
+    const isPawn = piece.type === 'p';
+    const isPromotionRank = (piece.color === 'w' && sourceSquare[1] === '7' && targetSquare[1] === '8') || 
+                            (piece.color === 'b' && sourceSquare[1] === '2' && targetSquare[1] === '1');
+
     if (isPawn && isPromotionRank) {
-      let tempMove = null;
-      try {
-        tempMove = chess.move({ from: sourceSquare, to: targetSquare });
-        chess.undo(); // Undo the temporary move
-      } catch (e) {
-        // This catch block is for chess.js errors, not invalid moves
-      }
-
-      if (tempMove === null) {
-        // Promotion is required
-        setPendingPromotionMove({ sourceSquare, targetSquare });
-        setShowPromotionModal(true);
-        return; // Stop handleMove here, wait for promotion selection
-      }
+        const moves = chess.moves({ square: sourceSquare, verbose: true });
+        const move = moves.find(m => m.to === targetSquare);
+        if (move) {
+            setPendingPromotionMove({ from: sourceSquare, to: targetSquare });
+            setShowPromotionModal(true);
+            return; // Stop execution until user selects a promotion piece
+        }
     }
 
-    // If not a promotion, or if it's a promotion that doesn't require a choice (e.g., only one legal promotion)
     try {
-      const move = chess.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q', // Default to queen if not a promotion requiring choice
-      });
-
-      if (move === null) {
-        toast.error('Invalid move! Please check piece movement rules, blocked paths, or if your King is in check.');
-        return;
-      }
-
-      const newFen = chess.fen();
-      const newHistory = chess.history();
-      const moveTime = Date.now();
-      const timeDiff = (moveTime - lastMoveTime) / 1000;
-      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
-      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
-
-      setFen(newFen);
-      setCapturedPieces(calculateCapturedPieces(newFen));
-      setHistory(newHistory);
-      setWhiteTime(newWhiteTime);
-      setBlackTime(newBlackTime);
-      setLastMoveTime(moveTime);
-
-      // Check for game over conditions
-      if (chess.in_checkmate()) {
-        setGameStatus('checkmate');
-        toast.success(`Checkmate! ${chess.turn() === 'w' ? 'Black' : 'White'} wins!`);
-      } else if (chess.in_draw()) {
-        setGameStatus('draw');
-        toast.info('Draw!');
-      } else if (chess.in_stalemate()) {
-        setGameStatus('stalemate');
-        toast.info('Stalemate!');
-      } else if (chess.in_threefold_repetition()) {
-        setGameStatus('draw');
-        toast.info('Draw by threefold repetition!');
-      } else if (chess.insufficient_material()) {
-        setGameStatus('draw');
-        toast.info('Draw by insufficient material!');
-      }
-
+        const move = chess.move({ from: sourceSquare, to: targetSquare });
+        if (move === null) {
+            toast.error('Invalid move!');
+            return;
+        }
+        updateGameState(move);
     } catch (error) {
-      console.error('Error during move:', error);
-      console.error('Source Square:', sourceSquare, 'Target Square:', targetSquare);
-      toast.error('An unexpected error occurred during move.');
+        console.error('Invalid move:', error);
+        toast.error('That move is not allowed.');
     }
-  };
+  }, [chess, gameStatus]);
 
   const handlePromotion = (promotionPiece) => {
     if (!chess || !pendingPromotionMove) return;
 
     try {
-      const { sourceSquare, targetSquare } = pendingPromotionMove;
-      const move = chess.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: promotionPiece,
-      });
-
-      if (move === null) {
-        toast.error('Invalid promotion move!');
-        // This should ideally not happen if the initial move was valid
-        // and promotion was correctly detected.
-        return;
-      }
-
-      // Update game state after successful promotion
-      const newFen = chess.fen();
-      const newHistory = chess.history();
-      const moveTime = Date.now();
-      const timeDiff = (moveTime - lastMoveTime) / 1000;
-      const newWhiteTime = Math.floor(chess.turn() === 'b' ? whiteTime - timeDiff : whiteTime);
-      const newBlackTime = Math.floor(chess.turn() === 'w' ? blackTime - timeDiff : blackTime);
-
-      setFen(newFen);
-      setCapturedPieces(calculateCapturedPieces(newFen));
-      setHistory(newHistory);
-      setWhiteTime(newWhiteTime);
-      setBlackTime(newBlackTime);
-      setLastMoveTime(moveTime);
-
-      // Check for game over conditions
-      if (chess.in_checkmate()) {
-        setGameStatus('checkmate');
-        toast.success(`Checkmate! ${chess.turn() === 'w' ? 'Black' : 'White'} wins!`);
-      } else if (chess.in_draw()) {
-        setGameStatus('draw');
-        toast.info('Draw!');
-      } else if (chess.in_stalemate()) {
-        setGameStatus('stalemate');
-        toast.info('Stalemate!');
-      } else if (chess.in_threefold_repetition()) {
-        setGameStatus('draw');
-        toast.info('Draw by threefold repetition!');
-      } else if (chess.insufficient_material()) {
-        setGameStatus('draw');
-        toast.info('Draw by insufficient material!');
-      }
-
+        const move = chess.move({ ...pendingPromotionMove, promotion: promotionPiece });
+        if (move === null) {
+            toast.error('Invalid promotion.');
+            return;
+        }
+        updateGameState(move);
     } catch (error) {
-      console.error('Error during promotion:', error);
-      toast.error('An unexpected error occurred during promotion.');
+        console.error('Promotion error:', error);
+        toast.error('An error occurred during promotion.');
     } finally {
-      setShowPromotionModal(false);
-      setPendingPromotionMove(null);
+        setShowPromotionModal(false);
+        setPendingPromotionMove(null);
+    }
+  };
+
+  const updateGameState = (move) => {
+    const newFen = chess.fen();
+    const newHistory = chess.history({ verbose: true });
+    const moveTime = Date.now();
+    const timeDiff = (moveTime - lastMoveTime) / 1000;
+
+    if (move.color === 'w') {
+      setWhiteTime(prev => prev - timeDiff);
+    } else {
+      setBlackTime(prev => prev - timeDiff);
+    }
+
+    setFen(newFen);
+    setCapturedPieces(calculateCapturedPieces(newFen));
+    setHistory(newHistory);
+    setLastMoveTime(moveTime);
+
+    checkGameOver();
+  };
+
+  const checkGameOver = () => {
+    if (chess.isCheckmate()) {
+      setGameStatus('checkmate');
+      toast.success(`Checkmate! ${chess.turn() === 'w' ? 'Black' : 'White'} wins!`);
+    } else if (chess.isDraw()) {
+      setGameStatus('draw');
+      toast.info('Draw!');
+    } else if (chess.isStalemate()) {
+      setGameStatus('stalemate');
+      toast.info('Stalemate!');
+    } else if (chess.isThreefoldRepetition()) {
+      setGameStatus('draw');
+      toast.info('Draw by threefold repetition!');
+    } else if (chess.isInsufficientMaterial()) {
+      setGameStatus('draw');
+      toast.info('Draw by insufficient material!');
     }
   };
 
@@ -262,7 +215,7 @@ export default function LocalGamePage() {
       setChess(newChess);
       setFen(newChess.fen());
       setCapturedPieces({ w: {}, b: {} });
-      setHistory(newChess.history());
+      setHistory(newChess.history({ verbose: true }));
       setWhiteTime(600);
       setBlackTime(600);
       setLastMoveTime(Date.now());
@@ -278,77 +231,51 @@ export default function LocalGamePage() {
     <>
       <Navbar />
       <div className="min-h-screen bg-bg text-text flex flex-col lg:flex-row lg:justify-center lg:items-start p-4 gap-4">
-        {/* Chessboard Section */}
+        <Toaster position="bottom-center" />
         <div className="flex-grow flex justify-center items-center">
           <div className="w-[90vh] max-w-[90vw] aspect-square shadow-lg rounded-lg overflow-hidden">
-            {chess && <LocalChessboard fen={fen} onMove={handleMove} />}
+            {chess && <LocalChessboard fen={fen} onMove={handleMove} turn={chess.turn()} />}
           </div>
         </div>
 
-        {/* Sidebar Section */}
         <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-4">
-          {/* Game Info Panel */}
           <div className="bg-panel p-4 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold mb-4">Local Game Info</h2>
-            <div className="space-y-4">
-              <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />
-              <Timer initialTime={blackTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'b'} />
+            <h2 className="text-2xl font-bold mb-4">Local Game</h2>
+            <div className="flex justify-around mb-2">
+                <div className={`p-2 rounded ${chess && chess.turn() === 'w' ? 'bg-accent text-white' : ''}`}>
+                    <h3 className="font-bold text-lg">White</h3>
+                    <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />
+                </div>
+                <div className={`p-2 rounded ${chess && chess.turn() === 'b' ? 'bg-accent text-white' : ''}`}>
+                    <h3 className="font-bold text-lg">Black</h3>
+                    <Timer initialTime={blackTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'b'} />
+                </div>
+            </div>
+            <div className="flex justify-between">
               <CapturedPieces captured={capturedPieces.b} color="white" />
               <CapturedPieces captured={capturedPieces.w} color="black" />
-              {/* MoveList will go here */}
-              <div>
-                <h3 className="font-bold">Status</h3>
-                <p>{gameStatus}</p>
-              </div>
-              <div>
-                <h3 className="font-bold">Turn</h3>
-                <p>{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : ''}</p>
-              </div>
-              <div>
-                <h3 className="font-bold">Players</h3>
-                <p className={chess && chess.turn() === 'w' ? 'text-accent font-semibold' : ''}>White: Player 1</p>
-                <p className={chess && chess.turn() === 'b' ? 'text-accent font-semibold' : ''}>Black: Player 2</p>
-              </div>
-              <button
-                className="btn w-full mt-4 bg-green-600 hover:bg-green-700"
-                onClick={handleNewGame}
-              >
-                New Game
-              </button>
+            </div>
+            <div className="mt-4">
+              <h3 className="font-bold">Status: <span className="font-normal">{gameStatus}</span></h3>
+              <h3 className="font-bold">Turn: <span className="font-normal">{chess ? (chess.turn() === 'w' ? 'White' : 'Black') : 'N/A'}</span></h3>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button className="btn flex-1 bg-green-600 hover:bg-green-700" onClick={handleNewGame}>New Game</button>
               {gameStatus === 'in_progress' && (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    className="btn flex-1 bg-red-600 hover:bg-red-700"
-                    onClick={() => handleResign('white')}
-                  >
-                    White Resigns
-                  </button>
-                  <button
-                    className="btn flex-1 bg-red-600 hover:bg-red-700"
-                    onClick={() => handleResign('black')}
-                  >
-                    Black Resigns
-                  </button>
-                </div>
+                <>
+                  <button className="btn flex-1 bg-red-600 hover:bg-red-700" onClick={() => handleResign('white')}>White Resigns</button>
+                  <button className="btn flex-1 bg-red-600 hover:bg-red-700" onClick={() => handleResign('black')}>Black Resigns</button>
+                </>
               )}
             </div>
           </div>
-          <MoveList history={history} /> {/* MoveList moved outside Game Info Panel */}
+          <MoveList history={history} />
         </div>
       </div>
-      {showPromotionModal && pendingPromotionMove && (
-        <PromotionModal
-          onSelectPromotion={handlePromotion}
-          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
-        />
-      )}
-    </>
-  );
-}
-      {showPromotionModal && pendingPromotionMove && (
-        <PromotionModal
-          onSelectPromotion={handlePromotion}
-          color={chess.turn() === 'w' ? 'black' : 'white'} // Color of the pawn being promoted
+      {showPromotionModal && (
+        <PromotionModal 
+          onSelect={handlePromotion} 
+          color={chess.turn() === 'w' ? 'w' : 'b'} 
         />
       )}
     </>

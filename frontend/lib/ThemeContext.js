@@ -10,15 +10,19 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('dark'); // default theme
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem('theme');
-    if (storedTheme) {
-      setTheme(storedTheme);
+    if (typeof window !== 'undefined') {
+      const storedTheme = localStorage.getItem('theme');
+      if (storedTheme) {
+        setTheme(storedTheme);
+      }
     }
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    if (typeof window !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    }
   }, [theme]);
 
   const toggleTheme = () => {
@@ -33,6 +37,6 @@ export function ThemeProvider({ children }) {
   return (
     <ThemeContext.Provider value={value}>
       {children}
-    </ThemeContext.Provider>
+    </ThemContext.Provider>
   );
 }
