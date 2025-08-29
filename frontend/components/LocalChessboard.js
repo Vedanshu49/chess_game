@@ -1,6 +1,11 @@
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import Chessboard from 'chessboardjsx';
+
+const Chessboard = dynamic(() => import('chessboardjsx'), {
+  ssr: false,
+  loading: () => <div className="text-center text-gray-400">Loading board...</div>,
+});
 
 // If you need SSR fallback, handle it in the parent page/component, not here.
 
