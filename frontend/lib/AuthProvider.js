@@ -10,6 +10,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let timeoutId;
     const loadUserAndProfile = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -22,15 +23,49 @@ export function AuthProvider({ children }) {
           setUser(profile ? { ...session.user, profile } : session.user);
           if (error) console.error("Error fetching profile:", error);
         } else {
+          // No valid session: clear all browser storage and cookies, redirect to login
           setUser(null);
+          if (typeof window !== "undefined") {
+            localStorage.clear();
+            sessionStorage.clear();
+            document.cookie.split(';').forEach((c) => {
+              document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+            });
+            window.location.replace("/login");
+          }
         }
       } catch (e) {
         console.error("Error in getSession:", e);
         setUser(null);
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+          sessionStorage.clear();
+          document.cookie.split(';').forEach((c) => {
+            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+          });
+          window.location.replace("/login");
+        }
       } finally {
         setLoading(false);
+        clearTimeout(timeoutId);
       }
     };
+
+    // Timeout: if loading takes >10s, clear storage/cookies and redirect to login
+    timeoutId = setTimeout(() => {
+      if (loading) {
+        setUser(null);
+        setLoading(false);
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+          sessionStorage.clear();
+          document.cookie.split(';').forEach((c) => {
+            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+          });
+          window.location.replace("/login");
+        }
+      }
+    }, 10000);
 
     loadUserAndProfile();
 
@@ -49,11 +84,20 @@ export function AuthProvider({ children }) {
         }
       } else {
         setUser(null);
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+          sessionStorage.clear();
+          document.cookie.split(';').forEach((c) => {
+            document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+          });
+          window.location.replace("/login");
+        }
       }
     });
 
     return () => {
       listener?.subscription.unsubscribe();
+      clearTimeout(timeoutId);
     };
   }, []);
 

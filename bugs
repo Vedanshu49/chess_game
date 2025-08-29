@@ -1,0 +1,106 @@
+Of course. Here is a well-formatted project plan based on the list of issues and feature requests you provided. This format organizes the tasks by priority and category, making them clear and actionable for a development team.
+
+Chess Application Development Plan: Bug Fixes & Feature Roadmap
+This document outlines the required bug fixes, user experience enhancements, and new features for the chess application. Tasks are categorized by priority and area of focus.
+
+## 👑 High Priority: Core Functionality & Stability
+### 1. Fix Critical User Login Failures
+Issue: Login fails intermittently (75% failure rate) in a normal browser but works more reliably in incognito mode (25% failure rate). This points to issues with client-side caching and server-side session management.
+
+Action: Implement a robust solution by following the detailed troubleshooting guide below to diagnose and fix the root cause related to stale cookies, cache, and session data.
+
+Implementation Guide:
+
+Diagnosis:
+
+Use Browser DevTools: Open the 'Network' and 'Application' tabs.
+
+Compare Requests: Record and compare the full request/response headers (especially Cookie, Set-Cookie, Cache-Control) of a failed login in a normal browser versus a successful login in incognito.
+
+Confirm the Cause: Manually clear all site data (cache, cookies) in the normal browser. A successful login immediately after will confirm that stale client-side data is the culprit.
+
+Server-Side Fixes (Node.js/Express):
+
+Robust Session Handling:
+
+On logout, properly destroy the session: req.session.destroy().
+
+On successful login, regenerate the session to create a fresh one: req.session.regenerate().
+
+Disable Caching on Auth Routes: Create a middleware to set Cache-Control: no-store headers on /login, /logout, and other sensitive API endpoints.
+
+Secure Cookie Configuration: Set secure defaults in express-session: { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Lax' }.
+
+Client-Side Fixes:
+
+Explicit Cleanup: On logout, ensure the client-side code explicitly removes any stored tokens or user data from localStorage and sessionStorage.
+
+### 2. Resolve Website Freeze on Page Refresh
+Issue: Refreshing the page causes the website to freeze on a loading spinner, forcing the user to close the tab and log in again.
+
+Action: Improve session and state management. The application must gracefully handle a page refresh by either seamlessly reconnecting to the game state or returning the user to a stable dashboard without freezing.
+
+### 3. Repair Online Matchmaking Functionality
+Issue: The matchmaking feature is broken. It produces a SQL error (Could not find the function public.matchmake_or_create_game) and fails to match the only two active players on the site.
+
+Action:
+
+Database: Debug the PostgreSQL function matchmake_or_create_game to ensure it exists, has the correct permissions, and its logic is sound.
+
+Backend Logic: Review the matchmaking algorithm. It should correctly identify waiting players and pair them in a game.
+
+## ♟️ In-Game Logic & Rules Engine
+### 1. Implement Pawn Promotion
+Issue: Pawns that reach the final rank are not being promoted.
+
+Action: When a pawn reaches the opponent's back rank, a UI modal must appear, allowing the player to choose between a Queen, Rook, Bishop, or Knight. The game state must update with the selected piece.
+
+### 2. Implement Stalemate and End-of-Game Logic
+Issue: The game does not end when a player has no legal moves (stalemate).
+
+Action: After every move, the game engine must check if the current player is in checkmate or stalemate. If a stalemate or checkmate condition is met, end the game and declare the appropriate winner or a draw.
+
+### 3. Correct Chessboard Dimensions
+Issue: The chessboard is not rendering as a standard 8x8 grid in all game modes.
+
+Action: Ensure the board rendering component consistently generates an 8x8 grid and that all game logic correctly references a 64-square model.
+
+## ✨ User Experience (UX) & Interface (UI)
+### 1. Enhance Piece Movement Controls
+Issue: The only way to move pieces is via drag-and-drop. This is not ideal for all devices.
+
+Action: Implement an additional Click-and-Click (or Tap-and-Tap) movement system.
+
+First Click: Selects the piece and highlights its legal moves.
+
+Second Click: Moves the piece to a highlighted legal square. Clicking a non-legal square or the same piece again should deselect it.
+
+### 2. Improve Error Messaging
+Issue: Invalid moves show a generic "unexpected error" popup. Users need clearer feedback.
+
+Action: Implement context-specific error messages.
+
+Instead of "unexpected error," show "Invalid Move."
+
+Add more specific errors like: "You cannot place your King in check," "This piece is blocked," or "You cannot capture your own piece."
+
+### 3. Fix Duplicate Error Popups
+Issue: Two error popups appear simultaneously (one from the top, one from the bottom).
+
+Action: Refactor the global notification system to ensure that only one error popup appears from the top for any given error, across the entire website.
+
+### 4. Correct Game Timer Logic
+Issue: The game timer starts as soon as one player joins, even before the opponent has arrived.
+
+Action: The timer should only begin its countdown after both players have joined the game and the first move is ready to be made.
+
+### 5. Fix "Waiting for Opponent" Screen
+Issue: The "Waiting for opponent" message does not disappear after the opponent joins.
+
+Action: Ensure the UI state correctly updates and removes the waiting message as soon as the second player connects to the game session.
+
+## 🚀 Performance
+### 1. Smooth Out Piece Movement Animation
+Issue: Moving pieces feels "jittery and laggy" in all game modes.
+
+Action: Optimize the piece animation logic. Use CSS transforms (translate) for movement instead of manipulating top/left properties. Ensure the drag-and-drop or click-and-move logic is efficient and does not cause re-renders of the entire board on every pixel of movement.

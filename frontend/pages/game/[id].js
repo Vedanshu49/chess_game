@@ -26,6 +26,7 @@ export default function GamePage() {
     const [game, setGame] = useState(null);
     const [chess, setChess] = useState(null);
     const [fen, setFen] = useState('start');
+    const [fenError, setFenError] = useState(null);
     const [history, setHistory] = useState([]);
     const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
     const [playerColor, setPlayerColor] = useState(null);
@@ -57,16 +58,22 @@ export default function GamePage() {
                 .single();
 
             if (error || !gameData) {
+                toast.dismiss();
                 toast.error('Game not found.');
                 router.replace('/dashboard');
                 return;
             }
 
             setGame(gameData);
-            setFen(gameData.fen);
-            chess.load(gameData.fen);
-            setHistory(chess.history({ verbose: true }));
-            setCapturedPieces(calculateCapturedPieces(gameData.fen));
+            try {
+                chess.load(gameData.fen);
+                setFen(gameData.fen);
+                setHistory(chess.history({ verbose: true }));
+                setCapturedPieces(calculateCapturedPieces(gameData.fen));
+                setFenError(null);
+            } catch (e) {
+                setFenError('Invalid board state detected. Please contact support.');
+            }
 
             const userIsCreator = gameData.creator === user.id;
             const userIsOpponent = gameData.opponent === user.id;
@@ -82,6 +89,7 @@ export default function GamePage() {
 
         } catch (err) {
             console.error("Error fetching game data:", err);
+            toast.dismiss();
             toast.error("Failed to load game.");
         } finally {
             setPageLoading(false);
@@ -102,10 +110,15 @@ export default function GamePage() {
             async (payload) => {
                 const newGame = payload.new;
                 setGame(newGame);
-                setFen(newGame.fen);
-                chess.load(newGame.fen);
-                setHistory(chess.history({ verbose: true }));
-                setCapturedPieces(calculateCapturedPieces(newGame.fen));
+                try {
+                    chess.load(newGame.fen);
+                    setFen(newGame.fen);
+                    setHistory(chess.history({ verbose: true }));
+                    setCapturedPieces(calculateCapturedPieces(newGame.fen));
+                    setFenError(null);
+                } catch (e) {
+                    setFenError('Invalid board state detected. Please contact support.');
+                }
 
                 // Fetch opponent profile if they just joined
                 if (payload.old.opponent === null && newGame.opponent !== null) {
@@ -118,8 +131,10 @@ export default function GamePage() {
                     const winnerUsername = newGame.winner === newGame.creator ? whitePlayer.username : blackPlayer.username;
                     let message = `Game over! ${winnerUsername} wins by ${newGame.winner_reason}.`;
                     if (newGame.winner === user?.id) {
+                        toast.dismiss();
                         toast.success(message);
                     } else {
+                        toast.dismiss();
                         toast.error(message);
                     }
                 }
@@ -139,26 +154,57 @@ export default function GamePage() {
     const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
         if (!chess || !isMyTurn || gameOver.over) return;
 
-        const moves = chess.moves({ square: sourceSquare, verbose: true });
-        const move = moves.find(m => m.to === targetSquare);
+        try {
+            const moves = chess.moves({ square: sourceSquare, verbose: true });
+            const move = moves.find(m => m.to === targetSquare);
 
-        if (!move) {
-            toast.error("Invalid Move!");
-            return;
+            if (!move) {
+                // Context-specific error messages
+                const piece = chess.get(sourceSquare);
+                if (!piece) {
+                    toast.dismiss();
+                    toast.error("No piece on selected square.");
+                } else if (piece.color !== playerColor) {
+                    toast.dismiss();
+                    toast.error("You cannot move your opponent's piece.");
+                } else if (sourceSquare === targetSquare) {
+                    toast.dismiss();
+                    toast.error("You must select a destination square.");
+                } else if (chess.get(targetSquare) && chess.get(targetSquare).color === playerColor) {
+                    toast.dismiss();
+                    toast.error("You cannot capture your own piece.");
+                } else {
+                    toast.dismiss();
+                    toast.error("Invalid Move! This piece is blocked or move is not allowed.");
+                }
+                return;
+            }
+
+            // Is it a promotion?
+            if (move.flags.includes('p')) {
+                setPendingMove({ from: sourceSquare, to: targetSquare });
+                setShowPromotionModal(true);
+                return;
+            }
+
+            // Make the move
+            const result = chess.move({ from: sourceSquare, to: targetSquare });
+            if (!result) {
+                if (chess.in_check()) {
+                    toast.dismiss();
+                    toast.error("You cannot place your King in check.");
+                } else {
+                    toast.dismiss();
+                    toast.error("Unexpected error: move could not be completed.");
+                }
+                return;
+            }
+            updateBackendWithMove(result);
+        } catch (err) {
+            toast.dismiss();
+            toast.error("Unexpected error during move: " + (err.message || err));
         }
-
-        // Is it a promotion?
-        if (move.flags.includes('p')) {
-            setPendingMove({ from: sourceSquare, to: targetSquare });
-            setShowPromotionModal(true);
-            return;
-        }
-
-        // Make the move
-        const result = chess.move({ from: sourceSquare, to: targetSquare });
-        if (result) updateBackendWithMove(result);
-
-    }, [chess, isMyTurn, gameOver.over]);
+    }, [chess, isMyTurn, gameOver.over, playerColor]);
 
     const handlePromotion = (promotionPiece) => {
         if (!chess || !pendingMove) return;
@@ -193,6 +239,7 @@ export default function GamePage() {
             .eq('id', gameId);
 
         if (error) {
+            toast.dismiss();
             toast.error('Failed to save move. Reverting.');
             chess.undo();
             setFen(chess.fen());
@@ -208,12 +255,20 @@ export default function GamePage() {
             .update({ status: 'finished', winner: winner, winner_reason: 'resignation' })
             .eq('id', gameId);
 
-        if (error) toast.error('Error resigning: ' + error.message);
+        if (error) toast.dismiss();
+        toast.error('Error resigning: ' + error.message);
     };
 
     if (pageLoading || authLoading) {
         return <GameSkeleton />;
     }
+    if (fenError) {
+        return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-red-500 text-xl">{fenError}</div>;
+    }
+
+    const bothPlayersJoined = game?.creator && game?.opponent;
+    const firstMoveMade = history.length > 0;
+    const timerShouldRun = !gameOver.over && isMyTurn && bothPlayersJoined && firstMoveMade;
 
     const PlayerInfo = ({ player, color, isTurn }) => (
         <div className={`p-3 rounded-lg ${isTurn ? 'bg-blue-600' : 'bg-gray-700'} transition-colors duration-300`}>
@@ -224,7 +279,7 @@ export default function GamePage() {
                     <p className="text-sm text-gray-300">Rating: {player?.rating || 'N/A'}</p>
                 </div>
             </div>
-            <Timer initialTime={color === 'w' ? game.white_time_left : game.black_time_left} isRunning={!gameOver.over && isTurn} />
+            <Timer initialTime={color === 'w' ? game.white_time_left : game.black_time_left} isRunning={timerShouldRun && isTurn} />
             <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
         </div>
     );
@@ -232,7 +287,7 @@ export default function GamePage() {
     return (
         <>
             <Navbar />
-            <Toaster position="bottom-center" />
+            <Toaster position="top-center" />
             <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row justify-center items-start p-4 gap-6">
                 
                 {/* Left Panel (Player Info) */}
@@ -250,6 +305,12 @@ export default function GamePage() {
                             playerColor={playerColor} 
                         />
                     </div>
+                    {!bothPlayersJoined && (
+                        <div className="mt-4 text-center p-4 bg-yellow-900 rounded-lg">
+                            <h2 className="text-2xl font-bold text-yellow-300">Waiting for opponent...</h2>
+                            <p className="text-yellow-200">Share the game link or wait for matchmaking.</p>
+                        </div>
+                    )}
                     {gameOver.over && (
                         <div className="mt-4 text-center p-4 bg-gray-800 rounded-lg">
                             <h2 className="text-2xl font-bold text-yellow-400">Game Over</h2>
@@ -277,7 +338,7 @@ export default function GamePage() {
             </div>
             {showPromotionModal && (
                 <PromotionModal 
-                    onSelect={handlePromotion} 
+                    onSelectPromotion={handlePromotion} 
                     color={playerColor} 
                 />
             )}
