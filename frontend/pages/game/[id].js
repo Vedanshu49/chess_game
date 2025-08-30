@@ -198,10 +198,9 @@ export default function GamePage() {
 
             const now = new Date();
             const newFen = chess.fen();
-            
+
             // Update local state
             setFen(newFen);
-                setLastGoodFen(newFen);
             setHistory(chess.history({ verbose: true }));
             setCapturedPieces(calculateCapturedPieces(newFen));
 
@@ -258,7 +257,12 @@ export default function GamePage() {
                 .update(gameUpdate)
                 .eq('id', game.id);
 
-            if (error) throw error;
+            if (error) {
+                throw error;
+            }
+
+            // Only record last-good FEN after DB update succeeded
+            setLastGoodFen(newFen);
 
             return true;
         } catch (error) {
@@ -414,6 +418,8 @@ export default function GamePage() {
             }
 
             setGame(gameData);
+            // record last known good FEN from server on load
+            setLastGoodFen(gameData.fen || startingFen);
             const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
                         
                         // For new games or invalid states, use starting position
@@ -610,6 +616,7 @@ export default function GamePage() {
             .from('games')
             .update({ 
                 fen: newFen, 
+                last_move: JSON.stringify(move),
                 last_move_at: now.toISOString(), 
                 status: newStatus, 
                 winner,
@@ -698,8 +705,6 @@ export default function GamePage() {
             const now = new Date();
             const newFen = chess.fen();
             
-            // record last-known-good FEN
-            setLastGoodFen(newFen);
             // Update local state
             setFen(newFen);
             setHistory(chess.history({ verbose: true }));
@@ -758,7 +763,12 @@ export default function GamePage() {
                 .update(gameUpdate)
                 .eq('id', game.id);
 
-            if (error) throw error;
+            if (error) {
+                throw error;
+            }
+
+            // Only record last-good FEN after the DB update succeeded
+            setLastGoodFen(newFen);
 
             return true;
         } catch (error) {
@@ -767,6 +777,8 @@ export default function GamePage() {
             // Reset to previous state if needed
             chess.load(fen);
             setFen(chess.fen());
+            // Ensure lastGoodFen stays consistent with the engine
+            try { setLastGoodFen(fen); } catch(e) { /* ignore */ }
             return false;
         }
     }, [chess, isMyTurn, gameOver.over, playerColor, game, fen]);

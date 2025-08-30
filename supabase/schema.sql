@@ -17,6 +17,7 @@ create table if not exists public.games (
   opponent uuid references public.profiles(id) on delete set null,
   invite_code text unique,                          -- e.g., 6-char code
   fen text not null,                                -- current position
+  last_move jsonb,                                  -- last move details (uci/san/etc)
   moves jsonb not null default '[]'::jsonb,         -- array of UCI
   status text not null default 'waiting',           -- waiting | in_progress | checkmate | stalemate | draw | timeout | resigned
   turn text not null default 'white',               -- whose turn
