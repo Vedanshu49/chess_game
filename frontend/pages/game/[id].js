@@ -911,6 +911,36 @@ export default function GamePage() {
                             Copy
                         </button>
                     </div>
+                    {/* Debug dump button - only visible when ?debug=true is in the URL */}
+                    {isClient && typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('debug') && (
+                        <div className="mt-3">
+                            <button
+                                className="px-3 py-1 bg-yellow-600 text-black rounded hover:bg-yellow-500"
+                                onClick={() => {
+                                    try {
+                                        console.group('GAME DEBUG DUMP');
+                                        console.log('fen:', fen);
+                                        console.log('lastGoodFen:', lastGoodFen);
+                                        console.log('awaitingPromotion:', awaitingPromotion);
+                                        console.log('showPromotionModal:', showPromotionModal);
+                                        console.log('playerColor:', playerColor);
+                                        try { console.log('chess.fen():', chess?.fen ? chess.fen() : 'n/a'); } catch (e) { console.error('chess.fen() error', e); }
+                                        try { console.log('chess.turn():', chess?.turn ? chess.turn() : 'n/a'); } catch (e) { console.error('chess.turn() error', e); }
+                                        console.log('isMyTurn (computed):', chess ? (chess.turn() === playerColor) : 'n/a');
+                                        console.log('game object snapshot:', game);
+                                        console.log('pageLoading, authLoading:', pageLoading, authLoading);
+                                        console.groupEnd();
+                                        toast.success('Game state dumped to console');
+                                    } catch (e) {
+                                        console.error('Failed to dump game state', e);
+                                        toast.error('Failed to dump game state');
+                                    }
+                                }}
+                            >
+                                Dump game state to console
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
             <Toaster />
