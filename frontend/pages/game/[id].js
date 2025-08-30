@@ -498,12 +498,11 @@ export default function GamePage() {
                     <h3 className="text-lg font-semibold mb-2 text-white">Share Game Code</h3>
                     <div className="flex items-center justify-center space-x-2">
                         <code className="bg-gray-700 px-4 py-2 rounded text-white font-mono text-xl">
-                            {game.short_code || game.id.substring(0, 6).toUpperCase()}
+                            {game.invite_code}
                         </code>
                         <button
                             onClick={() => {
-                                const code = game.short_code || game.id.substring(0, 6).toUpperCase();
-                                navigator.clipboard.writeText(code);
+                                navigator.clipboard.writeText(game.invite_code);
                                 toast.success('Game code copied to clipboard!');
                             }}
                             className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
