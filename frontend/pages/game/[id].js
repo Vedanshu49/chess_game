@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabasejs";
 import { useAuth } from "@/lib/AuthProvider";
