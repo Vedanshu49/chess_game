@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Navbar from "@/components/NavBar";
 import dynamic from 'next/dynamic';
 import toast, { Toaster } from 'react-hot-toast';
@@ -8,22 +8,34 @@ import MoveList from "@/components/MoveList";
 import Timer from "@/components/Timer";
 import PromotionModal from "@/components/PromotionModal";
 import { calculateCapturedPieces } from "@/lib/utils";
+import { useRouter } from 'next/router';
 
 const LocalChessboard = dynamic(() => import('@/components/LocalChessboard'), { ssr: false });
 
 
 
 export default function LocalGamePage() {
-  const [chess, setChess] = useState(null);
-  const [fen, setFen] = useState('start');
-  const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
-  const [history, setHistory] = useState([]);
-  const [whiteTime, setWhiteTime] = useState(600);
-  const [blackTime, setBlackTime] = useState(600);
-  const [lastMoveTime, setLastMoveTime] = useState(Date.now());
+  const router = useRouter();
+  
+  // Core game state
+  const [chess, setChess] = useState(() => new Chess());
   const [gameStatus, setGameStatus] = useState('in_progress');
+  const [lastMoveTime, setLastMoveTime] = useState(Date.now());
+  
+  // UI state
+  const [fen, setFen] = useState(() => chess.fen());
+  const [history, setHistory] = useState([]);
+  const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [pendingPromotionMove, setPendingPromotionMove] = useState(null);
+  
+  // Timer state
+  const [whiteTime, setWhiteTime] = useState(600);
+  const [blackTime, setBlackTime] = useState(600);
+  
+  // Game info for display
+  const [whitePlayer] = useState({ username: 'White' });
+  const [blackPlayer] = useState({ username: 'Black' });
 
   useEffect(() => {
     const loadChess = async () => {
@@ -41,87 +53,134 @@ export default function LocalGamePage() {
     loadChess();
   }, []);
 
+  // Timer Effect
   useEffect(() => {
-    if (gameStatus === 'in_progress' && chess) {
-      const timer = setInterval(() => {
-        if (chess.turn() === 'w') {
-          setWhiteTime(prev => {
-            if (prev <= 0) {
-              clearInterval(timer);
-              setGameStatus('timeout');
-              toast.success('Time out! Black wins!');
-              return 0;
-            }
-            return Math.max(0, prev - 1);
-          });
-        } else {
-          setBlackTime(prev => {
-            if (prev <= 0) {
-              clearInterval(timer);
-              setGameStatus('timeout');
-              toast.success('Time out! White wins!');
-              return 0;
-            }
-            return Math.max(0, prev - 1);
-          });
-        }
-      }, 1000);
-
-      return () => clearInterval(timer);
+    if (gameStatus !== 'in_progress' || !chess) {
+      return;
     }
-  }, [gameStatus, chess]);
+
+    let timeoutId;
+    const updateTimer = () => {
+      const currentTime = Date.now();
+      const isWhiteTurn = chess.turn() === 'w';
+      
+      if (isWhiteTurn) {
+        setWhiteTime(prev => {
+          const newTime = Math.max(0, prev - 1);
+          if (newTime === 0) {
+            setGameStatus('timeout');
+            toast.success('Time out! Black wins!');
+          }
+          return newTime;
+        });
+      } else {
+        setBlackTime(prev => {
+          const newTime = Math.max(0, prev - 1);
+          if (newTime === 0) {
+            setGameStatus('timeout');
+            toast.success('Time out! White wins!');
+          }
+          return newTime;
+        });
+      }
+      
+      if (gameStatus === 'in_progress') {
+        timeoutId = setTimeout(updateTimer, 1000);
+      }
+    };
+
+    timeoutId = setTimeout(updateTimer, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [gameStatus, chess, chess?.turn()]);
 
   const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
-    if (!chess || gameStatus !== 'in_progress') return;
-
-    const piece = chess.get(sourceSquare);
-    if (!piece) return;
-
-    const isPawn = piece.type === 'p';
-    const isPromotionRank = (piece.color === 'w' && sourceSquare[1] === '7' && targetSquare[1] === '8') || 
-                            (piece.color === 'b' && sourceSquare[1] === '2' && targetSquare[1] === '1');
-
-    if (isPawn && isPromotionRank) {
-        const moves = chess.moves({ square: sourceSquare, verbose: true });
-        const move = moves.find(m => m.to === targetSquare);
-        if (move) {
-            setPendingPromotionMove({ from: sourceSquare, to: targetSquare });
-            setShowPromotionModal(true);
-            return; // Stop execution until user selects a promotion piece
-        }
+    if (!chess || gameStatus !== 'in_progress') {
+      toast.error(gameStatus !== 'in_progress' ? 'Game is over!' : 'Chess engine not initialized');
+      return false;
     }
 
     try {
-        const move = chess.move({ from: sourceSquare, to: targetSquare });
-        if (move === null) {
-            toast.error('Invalid move!');
-            return;
+      // Check if this is a pawn promotion move
+      const piece = chess.get(sourceSquare);
+      if (piece?.type === 'p') {
+        const isPromotion = (piece.color === 'w' && targetSquare[1] === '8') || 
+                           (piece.color === 'b' && targetSquare[1] === '1');
+        
+        if (isPromotion) {
+          const legalMoves = chess.moves({ square: sourceSquare, verbose: true });
+          if (legalMoves.some(m => m.to === targetSquare)) {
+            setPendingPromotionMove({ from: sourceSquare, to: targetSquare });
+            setShowPromotionModal(true);
+            return true;
+          }
         }
-        updateGameState(move);
+      }
+
+      // Regular move
+      const move = chess.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: 'q' // Default to queen for any automatic promotions
+      });
+
+      if (!move) {
+        toast.error('Invalid move!');
+        return false;
+      }
+
+      // Update game state
+      setFen(chess.fen());
+      setHistory(chess.history({ verbose: true }));
+      setCapturedPieces(calculateCapturedPieces(chess.fen()));
+      setLastMoveTime(Date.now());
+
+      // Check game ending conditions
+      checkGameEnd();
+      
+      return true;
     } catch (error) {
-        console.error('Invalid move:', error);
-        toast.error('That move is not allowed.');
+      console.error('Move error:', error);
+      toast.error('An error occurred while making the move');
+      return false;
     }
   }, [chess, gameStatus]);
 
-  const handlePromotion = (promotionPiece) => {
-    if (!chess || !pendingPromotionMove) return;
+  const handlePromotion = useCallback((promotionPiece) => {
+    if (!chess || !pendingPromotionMove || gameStatus !== 'in_progress') {
+      toast.error('Cannot process promotion at this time');
+      setShowPromotionModal(false);
+      setPendingPromotionMove(null);
+      return;
+    }
 
     try {
-        const move = chess.move({ ...pendingPromotionMove, promotion: promotionPiece });
-        if (move === null) {
-            toast.error('Invalid promotion.');
-            return;
-        }
-        updateGameState(move);
+      const move = chess.move({
+        from: pendingPromotionMove.from,
+        to: pendingPromotionMove.to,
+        promotion: promotionPiece
+      });
+
+      if (!move) {
+        throw new Error('Invalid promotion move');
+      }
+
+      // Update game state
+      setFen(chess.fen());
+      setHistory(chess.history({ verbose: true }));
+      setCapturedPieces(calculateCapturedPieces(chess.fen()));
+      setLastMoveTime(Date.now());
+
+      // Check game ending conditions
+      checkGameEnd();
     } catch (error) {
-        console.error('Promotion error:', error);
-        toast.error('An error occurred during promotion.');
+      console.error('Promotion error:', error);
+      toast.error(error.message || 'Failed to promote pawn');
+      chess.load(fen); // Reset to previous position
     } finally {
-        setShowPromotionModal(false);
-        setPendingPromotionMove(null);
+      setShowPromotionModal(false);
+      setPendingPromotionMove(null);
     }
-  };
+  }, [chess, pendingPromotionMove, gameStatus, fen]);
 
   const updateGameState = (move) => {
     const newFen = chess.fen();
@@ -144,49 +203,59 @@ export default function LocalGamePage() {
     }
   };
 
-  const checkGameOver = () => {
+  const checkGameEnd = useCallback(() => {
+    if (!chess) return;
+
     if (chess.isCheckmate()) {
+      const winner = chess.turn() === 'w' ? 'Black' : 'White';
       setGameStatus('checkmate');
-      toast.success(`Checkmate! ${chess.turn() === 'w' ? 'Black' : 'White'} wins!`);
+      toast.success(`Checkmate! ${winner} wins!`);
     } else if (chess.isDraw()) {
       setGameStatus('draw');
-      toast.info('Draw!');
-    } else if (chess.isStalemate()) {
-      setGameStatus('stalemate');
-      toast.info('Stalemate!');
-    } else if (chess.isThreefoldRepetition()) {
-      setGameStatus('draw');
-      toast.info('Draw by threefold repetition!');
-    } else if (chess.isInsufficientMaterial()) {
-      setGameStatus('draw');
-      toast.info('Draw by insufficient material!');
+      if (chess.isStalemate()) {
+        toast.info('Game Over - Stalemate!');
+      } else if (chess.isInsufficientMaterial()) {
+        toast.info('Game Over - Insufficient Material!');
+      } else if (chess.isThreefoldRepetition()) {
+        toast.info('Game Over - Threefold Repetition!');
+      } else {
+        toast.info('Game Over - Draw!');
+      }
     }
-  };
+  }, [chess]);
 
-  const handleResign = (playerColor) => {
-    if (window.confirm(`Are you sure you want to resign?`)) {
+  const handleResign = useCallback((color) => {
+    if (gameStatus !== 'in_progress') {
+      toast.error('Cannot resign - game is already over');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to resign as ${color}?`)) {
+      const winner = color === 'white' ? 'Black' : 'White';
       setGameStatus('resigned');
-      toast.success(`${playerColor === 'white' ? 'White' : 'Black'} resigned. ${playerColor === 'white' ? 'Black' : 'White'} wins!`);
+      toast.success(`${color} resigned. ${winner} wins!`);
     }
-  };
+  }, [gameStatus]);
 
-  const handleNewGame = () => {
+  const handleNewGame = useCallback(() => {
     try {
       const newChess = new Chess();
       setChess(newChess);
       setFen(newChess.fen());
+      setHistory([]);
       setCapturedPieces({ w: {}, b: {} });
-      setHistory(newChess.history({ verbose: true }));
       setWhiteTime(600);
       setBlackTime(600);
       setLastMoveTime(Date.now());
       setGameStatus('in_progress');
+      setShowPromotionModal(false);
+      setPendingPromotionMove(null);
       toast.success('New game started!');
     } catch (error) {
-      console.error("Error starting new game:", error);
-      toast.error("Failed to start new game.");
+      console.error('Failed to start new game:', error);
+      toast.error('Could not start new game. Please refresh the page.');
     }
-  };
+  }, []);
 
   return (
     <>
