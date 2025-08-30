@@ -54,23 +54,30 @@ export default function GamePage() {
         }
     }, [gameOver.over]);
 
-    // Block route changes in SPA unless resigned
+    // Block route changes in SPA unless resigned or game not started
     useEffect(() => {
-        if (!gameOver.over) {
-            const handleRouteChange = (url) => {
-                if (url !== router.asPath) {
-                    toast.dismiss();
-                    toast.error('You must resign before leaving the game.');
-                    router.events.emit('routeChangeError');
-                    throw 'Route change blocked.';
-                }
-            };
-            router.events.on('routeChangeStart', handleRouteChange);
-            return () => {
-                router.events.off('routeChangeStart', handleRouteChange);
-            };
-        }
-    }, [gameOver.over, router]);
+        const handleRouteChange = (url) => {
+            // Allow navigation if:
+            // 1. Game is over
+            // 2. Second player hasn't joined
+            // 3. User is just spectating
+            if (gameOver.over || !game?.opponent || !playerColor) {
+                return;
+            }
+            
+            if (url !== router.asPath) {
+                toast.dismiss();
+                toast.error('You must resign before leaving the game.');
+                router.events.emit('routeChangeError');
+                throw 'Route change blocked.';
+            }
+        };
+        
+        router.events.on('routeChangeStart', handleRouteChange);
+        return () => {
+            router.events.off('routeChangeStart', handleRouteChange);
+        };
+    }, [gameOver.over, router, game?.opponent, playerColor]);
 
     // Handle pawn promotion
     const handlePromotion = useCallback(async (promotionPiece) => {
@@ -377,11 +384,13 @@ export default function GamePage() {
     // HandlePromotion is already defined above
 
     const handleResign = async () => {
-        if (gameOver.over) return;
+        if (gameOver.over) {
+            router.push('/dashboard');
+            return;
+        }
 
         // If second player hasn't joined, allow leaving without resignation
         if (!game.opponent) {
-            // Just redirect to dashboard
             router.push('/dashboard');
             return;
         }
@@ -390,6 +399,8 @@ export default function GamePage() {
 
         try {
             const winner = playerColor === 'w' ? game.opponent : game.creator;
+            setGameOver({ over: true, reason: 'resignation', winner });
+            
             const { data, error } = await supabase
                 .from('games')
                 .update({
