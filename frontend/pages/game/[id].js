@@ -53,17 +53,10 @@ export default function GamePage() {
     const [blackTime, setBlackTime] = useState(600);
     const [lastMoveTime, setLastMoveTime] = useState(Date.now());
     
-            let move;
-            try {
     // UI state
     const [isClient, setIsClient] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
     const [fenError, setFenError] = useState(null);
-            } catch (error) {
-                console.error('Move error:', error);
-                toast.error('Failed to make move');
-                return false;
-            }
     const [lastGoodFen, setLastGoodFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
