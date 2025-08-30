@@ -1,40 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function Timer({ initialTime = 600, isRunning = false }) {
   const [time, setTime] = useState(initialTime);
-  const [lastUpdate, setLastUpdate] = useState(Date.now());
-  const [previousTime, setPreviousTime] = useState(initialTime);
+  const lastTickRef = useRef(Date.now());
+  const intervalRef = useRef(null);
 
+  // Reset timer when initialTime changes
   useEffect(() => {
-    let lastTick = Date.now();
-    let interval = null;
+    setTime(initialTime);
+    lastTickRef.current = Date.now();
+  }, [initialTime]);
 
+  // Handle timer running state
+  useEffect(() => {
     if (isRunning && time > 0) {
-      interval = setInterval(() => {
+      lastTickRef.current = Date.now(); // Reset reference time when starting
+      
+      intervalRef.current = setInterval(() => {
         const now = Date.now();
-        const delta = now - lastTick;
-        if (delta >= 100) { // Only update if at least 100ms has passed
-          const elapsed = delta / 1000;
-          lastTick = now;
-          setTime(prevTime => Math.max(0, prevTime - elapsed));
-        }
+        const elapsed = (now - lastTickRef.current) / 1000;
+        
+        setTime(currentTime => {
+          const newTime = Math.max(0, currentTime - elapsed);
+          lastTickRef.current = now;
+          return newTime;
+        });
       }, 100);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+      
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-    };
-  }, [isRunning, time]);
-
-  useEffect(() => {
-    if (initialTime !== previousTime) {
-      setTime(initialTime);
-      setLastUpdate(Date.now());
-      setPreviousTime(initialTime);
     }
-  }, [initialTime, previousTime]);
+  }, [isRunning, time]);
 
   const formatTime = (seconds) => {
     const roundedSeconds = Math.floor(seconds);

@@ -23,6 +23,22 @@ export default function GamePage() {
     const { id: gameId } = router.query;
     const { user, loading: authLoading } = useAuth();
 
+    // Initialize all state variables at the top level
+    const [game, setGame] = useState(null);
+    const [chess] = useState(new Chess());
+    const [fen, setFen] = useState(chess.fen());
+    const [history, setHistory] = useState([]);
+    const [fenError, setFenError] = useState(null);
+    const [pageLoading, setPageLoading] = useState(true);
+    const [gameOver, setGameOver] = useState({ over: false, reason: '', winner: null });
+    const [whitePlayer, setWhitePlayer] = useState({ username: 'Player 1' });
+    const [blackPlayer, setBlackPlayer] = useState({ username: 'Player 2' });
+    const [playerColor, setPlayerColor] = useState(null);
+    const [isMyTurn, setIsMyTurn] = useState(false);
+    const [showPromotionModal, setShowPromotionModal] = useState(false);
+    const [pendingMove, setPendingMove] = useState(null);
+    const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
+
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
         if (!gameOver.over) {
@@ -55,33 +71,61 @@ export default function GamePage() {
         }
     }, [gameOver.over, router]);
 
-    const [game, setGame] = useState(null);
-    const [chess, setChess] = useState(null);
-        const [fen, setFen] = useState('start');
-        const [fenError, setFenError] = useState(null);
-
-        // Helper to validate FEN for 8x8 board
-        function isValidFen(fen) {
-            if (!fen) return false;
-            const rows = fen.split(' ')[0].split('/');
-            if (rows.length !== 8) return false;
-            for (const row of rows) {
-                let count = 0;
-                for (const char of row) {
-                    if (/[1-8]/.test(char)) count += parseInt(char);
-                    else count += 1;
-                }
-                if (count !== 8) return false;
-            }
-            return true;
+    // Handle pawn promotion
+    const handlePromotion = useCallback(async (promotionPiece) => {
+        if (!pendingMove || !chess) {
+            setShowPromotionModal(false);
+            return;
         }
-    const [history, setHistory] = useState([]);
-    const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
-    const [playerColor, setPlayerColor] = useState(null);
-    const [isMyTurn, setIsMyTurn] = useState(false);
-    const [gameOver, setGameOver] = useState({ over: false, reason: '', winner: null });
 
-    const [showPromotionModal, setShowPromotionModal] = useState(false);
+        try {
+            const { from, to } = pendingMove;
+            const move = chess.move({ from, to, promotion: promotionPiece });
+            
+            if (move) {
+                const newFen = chess.fen();
+                setFen(newFen);
+                setHistory(chess.history({ verbose: true }));
+                setCapturedPieces(calculateCapturedPieces(newFen));
+                
+                // Update the game state in Supabase
+                if (game?.id) {
+                    const { error } = await supabase
+                        .from('games')
+                        .update({
+                            fen: newFen,
+                            last_move: JSON.stringify(move),
+                            last_move_at: new Date().toISOString()
+                        })
+                        .eq('id', game.id);
+                        
+                    if (error) throw error;
+                }
+            }
+        } catch (error) {
+            console.error('Error in promotion:', error);
+            toast.error('Failed to promote pawn. Please try again.');
+        } finally {
+            setShowPromotionModal(false);
+            setPendingMove(null);
+        }
+    }, [chess, pendingMove, game?.id]);
+
+    // Helper to validate FEN for 8x8 board
+    function isValidFen(fen) {
+        if (!fen) return false;
+        const rows = fen.split(' ')[0].split('/');
+        if (rows.length !== 8) return false;
+        for (const row of rows) {
+            let count = 0;
+            for (const char of row) {
+                if (/[1-8]/.test(char)) count += parseInt(char);
+                else count += 1;
+            }
+            if (count !== 8) return false;
+        }
+        return true;
+    }
     const [pendingMove, setPendingMove] = useState(null);
 
     const [whitePlayer, setWhitePlayer] = useState(null);
