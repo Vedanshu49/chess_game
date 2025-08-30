@@ -43,7 +43,7 @@ export default function PromotionModal({ onSelectPromotion = () => {}, color }) 
                 alt={piece}
                 className="w-14 h-14 pointer-events-none"
               />
-              <span className="mt-2 text-sm capitalize">{getPieceName(piece)}</span>
+              <span className="mt-2 text-sm capitalize">{pieceNames[piece]}</span>
             </button>
           ))}
         </div>

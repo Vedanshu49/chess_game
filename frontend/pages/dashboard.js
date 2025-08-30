@@ -90,62 +90,30 @@ export default function Dashboard() {
     setSearchingGameId(null);
 
     try {
-      // First try to find an existing game
-      const { data: existingGames, error: searchError } = await supabase
+      // Create a new game
+      const { data: newGame, error: createError } = await supabase
         .from('games')
-        .select('id')
-        .eq('status', 'waiting')
-        .is('invite_code', null)
-        .neq('creator', user.id)
-        .is('opponent', null)
-        .limit(1);
+        .insert({ 
+          status: 'waiting',
+          creator: user.id,
+          players_joined: 1,
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+          white_time_left: 600,
+          black_time_left: 600,
+          last_move_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-      if (searchError) throw searchError;
-
-      if (existingGames && existingGames.length > 0) {
-        // Join existing game
-        const gameId = existingGames[0].id;
-        const { error: joinError } = await supabase
-          .from('games')
-          .update({ 
-            opponent: user.id,
-            status: 'in_progress',
-            players_joined: 2,
-            last_move_at: new Date().toISOString()
-          })
-          .eq('id', gameId);
-
-        if (joinError) throw joinError;
-        
-        setSearching(false);
-        toast.success('Game found! Joining...');
-        router.push(`/game/${gameId}`);
-      } else {
-        // Create new game
-        const { data: newGame, error: createError } = await supabase
-          .from('games')
-          .insert({
-            creator: user.id,
-            status: 'waiting',
-            players_joined: 1,
-            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-            white_time_left: 600,
-            black_time_left: 600,
-            last_move_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        
-        setSearchingGameId(newGame.id);
-      }
-    
+      if (createError) throw createError;
+      setSearchingGameId(newGame.id);
+      toast.success('Looking for opponents...');
+      // The useEffect above will handle opponent joining and redirect
     } catch (error) {
       console.error("Error in handlePlayOnline:", error);
-      toast.error("Matchmaking error: " + error.message);
       setSearching(false);
       setSearchingGameId(null);
+      toast.error("Matchmaking error: " + error.message);
     }
   }
 
@@ -173,7 +141,7 @@ export default function Dashboard() {
       <Navbar />
       <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-10 flex flex-col items-center justify-start">
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold">Chess Masters</h1>
+          <h1 className="text-4xl md:text-5xl font-bold">Chess Arena</h1>
           <p className="text-gray-400 mt-2">A project by Vedanshu</p>
         </div>
         <h2 className="text-2xl font-semibold mb-6">Welcome, {user.profile?.username || user.email}</h2>

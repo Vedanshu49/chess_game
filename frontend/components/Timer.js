@@ -6,24 +6,27 @@ export default function Timer({ initialTime = 600, isRunning = false }) {
   const [previousTime, setPreviousTime] = useState(initialTime);
 
   useEffect(() => {
+    let lastTick = Date.now();
     let interval = null;
+
     if (isRunning && time > 0) {
       interval = setInterval(() => {
         const now = Date.now();
-        const elapsed = (now - lastUpdate) / 1000;
-        setTime(prevTime => {
-          const newTime = Math.max(0, prevTime - elapsed);
-          return newTime;
-        });
-        setLastUpdate(now);
-      }, 100); // Update more frequently for better accuracy
-    } else {
-      setLastUpdate(Date.now());
+        const delta = now - lastTick;
+        if (delta >= 100) { // Only update if at least 100ms has passed
+          const elapsed = delta / 1000;
+          lastTick = now;
+          setTime(prevTime => Math.max(0, prevTime - elapsed));
+        }
+      }, 100);
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+      }
     };
-  }, [isRunning, lastUpdate, time]);
+  }, [isRunning, time]);
 
   useEffect(() => {
     if (initialTime !== previousTime) {
