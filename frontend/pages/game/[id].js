@@ -57,10 +57,16 @@ export default function GamePage() {
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
     
-    // Derived state
-    const isMyTurn = useMemo(() => {
-        if (!chess || !playerColor || gameOver.over) return false;
-        return chess.turn() === playerColor;
+    // Game turn state
+    const [isMyTurn, setIsMyTurn] = useState(false);
+
+    // Update turn state when relevant game state changes
+    useEffect(() => {
+        if (!chess || !playerColor || gameOver.over) {
+            setIsMyTurn(false);
+            return;
+        }
+        setIsMyTurn(chess.turn() === playerColor);
     }, [chess, playerColor, gameOver.over]);
 
     // Initialize chess instance when game data changes
@@ -525,7 +531,8 @@ export default function GamePage() {
             console.log('Move rejected:', { 
                 hasChess: !!chess, 
                 isMyTurn, 
-                isGameOver: gameOver.over 
+                isGameOver: gameOver.over,
+                gameId: game?.id
             });
             return false;
         }
