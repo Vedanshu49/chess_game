@@ -38,6 +38,7 @@ export default function GamePage() {
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
     const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
+    const [isClient, setIsClient] = useState(false);
 
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
@@ -126,14 +127,6 @@ export default function GamePage() {
         }
         return true;
     }
-    const [pendingMove, setPendingMove] = useState(null);
-
-    const [whitePlayer, setWhitePlayer] = useState(null);
-    const [blackPlayer, setBlackPlayer] = useState(null);
-
-    const [pageLoading, setPageLoading] = useState(true);
-
-    const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
         setIsClient(true);
@@ -346,10 +339,7 @@ export default function GamePage() {
         }
     }, [chess, isMyTurn, gameOver.over, playerColor, updateBackendWithMove]);
 
-    const handlePromotion = useCallback(async (promotionPiece) => {
-        if (!chess || !pendingMove) {
-            toast.error('Error during promotion: invalid state');
-            setShowPromotionModal(false);
+    // Removed duplicate handlePromotion definition as it's already defined above
             setPendingMove(null);
             return;
         }
