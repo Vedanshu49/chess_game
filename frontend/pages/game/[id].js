@@ -370,7 +370,7 @@ export default function GamePage() {
 
     // Timer update effect
     useEffect(() => {
-        if (!game || gameOver.over || !chess) {
+        if (!game || gameOver.over || !chess || !bothPlayersJoined) {
             return;
         }
 
@@ -395,7 +395,7 @@ export default function GamePage() {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [game, gameOver.over, chess]);
+    }, [game, gameOver.over, chess, bothPlayersJoined]);
 
     // Initialize chess.js
     useEffect(() => {
@@ -471,17 +471,21 @@ export default function GamePage() {
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, 
             async (payload) => {
                 const newGame = payload.new;
+                const oldGame = payload.old;
                 setGame(newGame);
 
                 // The useEffect hook that depends on `game` will handle FEN updates.
 
-                // Fetch opponent profile if they just joined
-                if (payload.old.opponent === null && newGame.opponent !== null) {
+                // When opponent joins, fetch their profile and reset the clock start time
+                if (oldGame.opponent === null && newGame.opponent !== null) {
                     const { data: opponentProfile } = await supabase.from('profiles').select('username, rating').eq('id', newGame.opponent).single();
                     setBlackPlayer(opponentProfile || { username: 'Player 2' });
-                }
-                    const { data: opponentProfile } = await supabase.from('profiles').select('username, rating').eq('id', newGame.opponent).single();
-                    setBlackPlayer(opponentProfile || { username: 'Player 2' });
+                    
+                    // Reset clock by updating the last_move_at timestamp
+                    await supabase
+                        .from('games')
+                        .update({ last_move_at: new Date().toISOString() })
+                        .eq('id', newGame.id);
                 }
 
                 if (newGame.status === 'finished') {
