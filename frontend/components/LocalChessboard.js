@@ -9,7 +9,7 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 
 // If you need SSR fallback, handle it in the parent page/component, not here.
 
-export default function LocalChessboard({ position, onDrop, turn, playerColor, orientation = 'white', draggable = true }) {
+export default function LocalChessboard({ position, onDrop, turn, playerColor, orientation = 'white', draggable = true, getLegalMoves }) {
   // Standard starting FEN
   const standardFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -69,15 +69,15 @@ export default function LocalChessboard({ position, onDrop, turn, playerColor, o
       if (!selectedSquare) {
         setSelectedSquare(square);
         // Get legal moves for this piece
-        if (typeof window !== 'undefined' && window.chess) {
-          const moves = window.chess.moves({ square, verbose: true });
+      if (typeof getLegalMoves === 'function') {
+        const moves = getLegalMoves(square) || [];
           if (moves.length === 0) {
             toast.error('No legal moves for this piece.');
             setSelectedSquare(null);
             setLegalMoves([]);
             return;
           }
-          setLegalMoves(moves.map(m => m.to));
+        setLegalMoves(moves.map(m => m.to));
         }
       } else {
         if (legalMoves.includes(square)) {
@@ -89,8 +89,8 @@ export default function LocalChessboard({ position, onDrop, turn, playerColor, o
           setLegalMoves([]);
         } else {
           setSelectedSquare(square);
-          if (typeof window !== 'undefined' && window.chess) {
-            const moves = window.chess.moves({ square, verbose: true });
+          if (typeof getLegalMoves === 'function') {
+            const moves = getLegalMoves(square) || [];
             if (moves.length === 0) {
               toast.error('No legal moves for this piece.');
               setSelectedSquare(null);

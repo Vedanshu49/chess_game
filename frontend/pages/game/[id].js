@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
+import toast from 'react-hot-toast';
+import { supabase } from '@/lib/supabasejs';
 import Navbar from '../../components/NavBar';
 import CapturedPieces from '../../components/CapturedPieces';
 import MoveList from '../../components/MoveList';
@@ -88,7 +90,21 @@ export default function GamePage() {
 
                 <div className="flex-grow flex justify-center items-start">
                     <div className="w-full max-w-[90vw] md:max-w-[75vh] aspect-square mx-auto">
-                        {isClient && <Chessboard position={fen} onDrop={handleMove} orientation={playerColor || 'white'} draggable={!gameOver.over && isMyTurn} />}
+                        {game?.status === 'waiting' && (
+                            <div className="bg-panel p-6 rounded-lg text-center">
+                                <h3 className="text-lg font-semibold mb-2">Waiting for opponent...</h3>
+                                {game.invite_code ? (
+                                    <div>
+                                        <p className="text-sm text-gray-300">Share this code with your friend to join:</p>
+                                        <div className="font-mono text-2xl p-2 bg-gray-800 rounded inline-block mt-2 cursor-pointer" onClick={() => { navigator.clipboard.writeText(game.invite_code); toast.success('Invite code copied!') }}>{game.invite_code}</div>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-300">Looking for a random opponent...</p>
+                                )}
+                                <button className="btn mt-4 bg-red-600" onClick={async () => { await supabase.from('games').delete().eq('id', game.id); router.push('/dashboard'); }}>Cancel</button>
+                            </div>
+                        )}
+                        {isClient && game?.status !== 'waiting' && <Chessboard position={fen} onDrop={handleMove} getLegalMoves={(sq) => chess ? chess.moves({ square: sq, verbose: true }) : []} orientation={playerColor || 'white'} draggable={!gameOver.over && isMyTurn} />}
                     </div>
                 </div>
 

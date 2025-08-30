@@ -76,8 +76,6 @@ export default function Dashboard() {
           last_move_at: new Date().toISOString()
         })
         .select()
-        .single()
-        .select()
         .single();
       if (error) throw error;
       router.push(`/game/${data.id}`);

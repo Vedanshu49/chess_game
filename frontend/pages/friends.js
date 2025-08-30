@@ -41,8 +41,8 @@ export default function FriendsPage() {
 
   async function fetchFriends() {
     if (!user) return;
-    setLoading(true);
-    try {
+  setLoading(true);
+  try {
       const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
         .select(`
@@ -80,24 +80,25 @@ export default function FriendsPage() {
     } catch (error) {
       toast.error('Failed to fetch friends data: ' + error.message);
     } finally {
-        // Remove friend logic - must be above return
-        const handleRemoveFriend = async (friendId) => {
-          if (!user || !friendId) return;
-          if (!window.confirm('Are you sure you want to remove this friend?')) return;
-          try {
-            // Remove both directions of friendship
-            const { error } = await supabase
-              .from('friends')
-              .delete()
-              .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`);
-            if (error) throw error;
-            toast.success('Friend removed.');
-            fetchFriends();
-          } catch (error) {
-            toast.error('Error removing friend: ' + error.message);
-          }
-        };
       setLoading(false);
+    }
+  }
+
+  // Remove friend logic - moved outside of fetchFriends so UI handlers can use it
+  async function handleRemoveFriend(friendId) {
+    if (!user || !friendId) return;
+    if (!window.confirm('Are you sure you want to remove this friend?')) return;
+    try {
+      // Remove both directions of friendship
+      const { error } = await supabase
+        .from('friends')
+        .delete()
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`);
+      if (error) throw error;
+      toast.success('Friend removed.');
+      fetchFriends();
+    } catch (error) {
+      toast.error('Error removing friend: ' + error.message);
     }
   }
 

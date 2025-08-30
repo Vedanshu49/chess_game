@@ -31,6 +31,13 @@ export default function LocalGamePage() {
     handleResign
   } = useLocalGame();
 
+  const getLegalMoves = (square) => {
+    try {
+      if (!chess) return [];
+      return chess.moves({ square, verbose: true }) || [];
+    } catch (e) { return []; }
+  };
+
   const [whitePlayer] = useState({ username: 'White' });
   const [blackPlayer] = useState({ username: 'Black' });
 
@@ -41,7 +48,7 @@ export default function LocalGamePage() {
         <Toaster position="bottom-center" />
         <div className="flex-grow flex justify-center items-center">
           <div className="w-[90vh] max-w-[90vw] aspect-square shadow-lg rounded-lg overflow-hidden">
-            {chess && <LocalChessboard fen={fen} onMove={handleMove} turn={chess.turn()} />}
+            {chess && <LocalChessboard position={fen} onDrop={handleMove} turn={chess.turn()} getLegalMoves={getLegalMoves} />}
           </div>
         </div>
 
