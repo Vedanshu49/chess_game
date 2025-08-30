@@ -1,5 +1,5 @@
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const Chessboard = dynamic(() => import('chessboardjsx'), {
@@ -9,7 +9,7 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 
 // If you need SSR fallback, handle it in the parent page/component, not here.
 
-export default function LocalChessboard({ position, onDrop, turn, playerColor }) {
+export default function LocalChessboard({ position, onDrop, turn, playerColor, orientation = 'white', draggable = true }) {
   // Standard starting FEN
   const standardFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -39,6 +39,29 @@ export default function LocalChessboard({ position, onDrop, turn, playerColor })
   }
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [legalMoves, setLegalMoves] = useState([]);
+  const containerRef = useRef(null);
+  const [boardWidth, setBoardWidth] = useState(400);
+
+  // Compute responsive board width based on container and viewport
+  useEffect(() => {
+    function updateWidth() {
+      try {
+        const margin = 32; // padding
+        const parentWidth = containerRef.current ? containerRef.current.clientWidth : window.innerWidth - margin;
+        // prefer almost-full width on mobile, cap at 720 and also cap by viewport height
+        const vw = Math.min(parentWidth, window.innerWidth - margin);
+        const vhCap = Math.min(window.innerHeight * 0.9, 720);
+        const width = Math.min(vw, vhCap);
+        setBoardWidth(Math.max(220, Math.floor(width)));
+      } catch (e) {
+        setBoardWidth(400);
+      }
+    }
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   // Handle square click for click-to-move
   const handleSquareClick = (square) => {
@@ -95,13 +118,14 @@ export default function LocalChessboard({ position, onDrop, turn, playerColor })
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center" style={{ minHeight: 400 }}>
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center" style={{ minHeight: 220 }}>
       <Chessboard
         position={safeFen}
         onDrop={onDrop}
         onSquareClick={handleSquareClick}
-        draggable={true}
-        width={400}
+        draggable={draggable}
+        orientation={orientation}
+        width={boardWidth}
         boardStyle={{
           borderRadius: '5px',
           boxShadow: `0 5px 15px rgba(0, 0, 0, 0.5)`,

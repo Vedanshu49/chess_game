@@ -53,10 +53,17 @@ export default function GamePage() {
     const [blackTime, setBlackTime] = useState(600);
     const [lastMoveTime, setLastMoveTime] = useState(Date.now());
     
+            let move;
+            try {
     // UI state
     const [isClient, setIsClient] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
     const [fenError, setFenError] = useState(null);
+            } catch (error) {
+                console.error('Move error:', error);
+                toast.error('Failed to make move');
+                return false;
+            }
     const [lastGoodFen, setLastGoodFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
@@ -84,13 +91,21 @@ export default function GamePage() {
                 const ok = validator.load(incomingFen);
                 const newChess = new Chess();
                 if (!ok) {
-                    console.error('Invalid FEN in game data, falling back to starting position:', incomingFen);
-                    toast.error('Invalid board state received; using default starting position.');
-                    newChess.reset();
-                    setFen(newChess.fen());
-                    // Do not overwrite lastGoodFen when incoming FEN is invalid
-                    setHistory([]);
-                    setCapturedPieces(calculateCapturedPieces(newChess.fen()));
+                    console.warn('Invalid FEN in game data, falling back to lastGoodFen/starting position:', incomingFen);
+                    // silently recover using lastGoodFen if available, otherwise starting position
+                    const fallback = lastGoodFen || startingFen;
+                    try {
+                        newChess.load(fallback);
+                        setFen(fallback);
+                        setHistory(newChess.history({ verbose: true }));
+                        setCapturedPieces(calculateCapturedPieces(fallback));
+                    } catch (e) {
+                        console.error('Failed to load fallback FEN, resetting to start:', e);
+                        newChess.reset();
+                        setFen(newChess.fen());
+                        setHistory([]);
+                        setCapturedPieces(calculateCapturedPieces(newChess.fen()));
+                    }
                 } else {
                     newChess.load(incomingFen);
                     setLastGoodFen(incomingFen);
@@ -110,7 +125,7 @@ export default function GamePage() {
                 // keep lastGoodFen untouched on unexpected error
                 setHistory([]);
                 setCapturedPieces(calculateCapturedPieces(fallback.fen()));
-                toast.error('Error initializing board state; using default position.');
+                    console.warn('Error initializing board state; using default position.');
                 setFenError(null);
             }
         }
@@ -510,9 +525,8 @@ export default function GamePage() {
                     if (!ok) {
                         // Received malformed FEN from server — fall back to last known good position
                         const fallbackFen = lastGoodFen || startingFen;
-                        console.error('Received invalid FEN for game', gameId, incomingFen, 'falling back to', fallbackFen);
+                        console.warn('Received invalid FEN for game', gameId, incomingFen, 'falling back to', fallbackFen);
                         console.debug('State at invalid FEN: playerColor=', playerColor, 'isMyTurn=', isMyTurn, 'awaitingPromotion=', awaitingPromotion, 'currentChessFen=', chess?.fen());
-                        toast.error('Received invalid board FEN from server, using last known good position.');
                         const safeChess = new Chess();
                         safeChess.load(fallbackFen);
                         setFen(fallbackFen);
@@ -894,7 +908,7 @@ export default function GamePage() {
                 </div>
                 
                 <div className="flex-grow flex justify-center items-start">
-                    <div className="w-full max-w-[75vh] aspect-square">
+                    <div className="w-full max-w-[90vw] md:max-w-[75vh] aspect-square mx-auto">
                         {isClient && <Chessboard 
                             position={fen}
                             onDrop={handleMove}
