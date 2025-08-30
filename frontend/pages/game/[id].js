@@ -23,9 +23,9 @@ export default function GamePage() {
     const { id: gameId } = router.query;
     const { user, loading: authLoading } = useAuth();
 
-    // Initialize all state variables at the top level
-    const [game, setGame] = useState(null);
+    // Initialize all state variables at the top level, with chess first
     const [chess, setChess] = useState(() => new Chess());
+    const [game, setGame] = useState(null);
     const [fen, setFen] = useState(() => chess.fen());
     const [history, setHistory] = useState([]);
     const [fenError, setFenError] = useState(null);

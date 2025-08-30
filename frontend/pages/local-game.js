@@ -42,40 +42,34 @@ export default function LocalGamePage() {
   }, []);
 
   useEffect(() => {
-    if (gameStatus === 'in_progress') {
+    if (gameStatus === 'in_progress' && chess) {
       const timer = setInterval(() => {
-        const now = Date.now();
-        const timeDiff = (now - lastMoveTime) / 1000;
-
-        if (chess) {
-          if (chess.turn() === 'w') {
-            setWhiteTime(prev => {
-              const newTime = prev - timeDiff;
-              if (newTime <= 0) {
-                setGameStatus('timeout');
-                toast.success('Time out! Black wins!');
-                return 0;
-              }
-              return newTime;
-            });
-          } else {
-            setBlackTime(prev => {
-              const newTime = prev - timeDiff;
-              if (newTime <= 0) {
-                setGameStatus('timeout');
-                toast.success('Time out! White wins!');
-                return 0;
-              }
-              return newTime;
-            });
-          }
+        if (chess.turn() === 'w') {
+          setWhiteTime(prev => {
+            if (prev <= 0) {
+              clearInterval(timer);
+              setGameStatus('timeout');
+              toast.success('Time out! Black wins!');
+              return 0;
+            }
+            return Math.max(0, prev - 1);
+          });
+        } else {
+          setBlackTime(prev => {
+            if (prev <= 0) {
+              clearInterval(timer);
+              setGameStatus('timeout');
+              toast.success('Time out! White wins!');
+              return 0;
+            }
+            return Math.max(0, prev - 1);
+          });
         }
-        setLastMoveTime(now);
       }, 1000);
 
       return () => clearInterval(timer);
     }
-  }, [gameStatus, lastMoveTime, chess]);
+  }, [gameStatus, chess]);
 
   const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
     if (!chess || gameStatus !== 'in_progress') return;
@@ -132,21 +126,22 @@ export default function LocalGamePage() {
   const updateGameState = (move) => {
     const newFen = chess.fen();
     const newHistory = chess.history({ verbose: true });
-    const moveTime = Date.now();
-    const timeDiff = (moveTime - lastMoveTime) / 1000;
-
-    if (move.color === 'w') {
-      setWhiteTime(prev => prev - timeDiff);
-    } else {
-      setBlackTime(prev => prev - timeDiff);
-    }
-
+    
+    // Time is now handled by the timer effect
     setFen(newFen);
     setCapturedPieces(calculateCapturedPieces(newFen));
     setHistory(newHistory);
-    setLastMoveTime(moveTime);
 
-    checkGameOver();
+    // Check for game-ending conditions
+    if (whiteTime <= 0) {
+      setGameStatus('timeout');
+      toast.success('Time out! Black wins!');
+    } else if (blackTime <= 0) {
+      setGameStatus('timeout');
+      toast.success('Time out! White wins!');
+    } else {
+      checkGameOver();
+    }
   };
 
   const checkGameOver = () => {
@@ -209,12 +204,18 @@ export default function LocalGamePage() {
             <h2 className="text-2xl font-bold mb-4">Local Game</h2>
             <div className="flex flex-col sm:flex-row sm:justify-around mb-2 gap-2">
                 <div className={`p-2 rounded ${chess && chess.turn() === 'w' ? 'bg-accent text-white' : ''}`}>
-                    <h3 className="font-bold text-lg">White</h3>
-                    <Timer initialTime={whiteTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'w'} />
+                    <Timer 
+                        player={{ username: 'White' }}
+                        timeLeft={whiteTime}
+                        isActive={gameStatus === 'in_progress' && chess?.turn() === 'w'}
+                    />
                 </div>
                 <div className={`p-2 rounded ${chess && chess.turn() === 'b' ? 'bg-accent text-white' : ''}`}>
-                    <h3 className="font-bold text-lg">Black</h3>
-                    <Timer initialTime={blackTime} isRunning={gameStatus === 'in_progress' && chess?.turn() === 'b'} />
+                    <Timer 
+                        player={{ username: 'Black' }}
+                        timeLeft={blackTime}
+                        isActive={gameStatus === 'in_progress' && chess?.turn() === 'b'}
+                    />
                 </div>
             </div>
             <div className="flex justify-between">
