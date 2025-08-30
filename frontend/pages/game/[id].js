@@ -25,8 +25,8 @@ export default function GamePage() {
 
     // Initialize all state variables at the top level
     const [game, setGame] = useState(null);
-    const [chess] = useState(new Chess());
-    const [fen, setFen] = useState(chess.fen());
+    const [chess, setChess] = useState(() => new Chess());
+    const [fen, setFen] = useState(() => chess.fen());
     const [history, setHistory] = useState([]);
     const [fenError, setFenError] = useState(null);
     const [pageLoading, setPageLoading] = useState(true);
@@ -339,37 +339,7 @@ export default function GamePage() {
         }
     }, [chess, isMyTurn, gameOver.over, playerColor, updateBackendWithMove]);
 
-    // Removed duplicate handlePromotion definition as it's already defined above
-            setPendingMove(null);
-            return;
-        }
-        try {
-            const result = chess.move({ 
-                from: pendingMove.from, 
-                to: pendingMove.to, 
-                promotion: promotionPiece 
-            });
-            if (result) {
-                setFen(chess.fen());
-                await updateBackendWithMove(result);
-                toast.success('Pawn promoted successfully!');
-            } else {
-                toast.error('Invalid promotion move');
-                chess.undo();  // Ensure we revert any invalid state
-                setFen(chess.fen());
-            }
-        } catch (err) {
-            console.error('Promotion error:', err);
-            toast.error('Error during promotion: ' + (err.message || 'unknown error'));
-            if (chess) {
-                chess.undo();  // Revert the chess state on error
-                setFen(chess.fen());
-            }
-        } finally {
-            setShowPromotionModal(false);
-            setPendingMove(null);
-        }
-    }, [chess, pendingMove, updateBackendWithMove, setFen]);
+    // HandlePromotion is already defined above
 
     const handleResign = async () => {
         if (gameOver.over || !window.confirm('Are you sure you want to resign?')) return;
