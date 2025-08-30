@@ -10,7 +10,7 @@ const formatTime = (seconds) => {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
-const Timer = memo(({ player, timeLeft, isActive }) => {
+const Timer = memo(({ player, timeLeft, isActive, waitingForOpponent }) => {
     const activeClass = isActive 
         ? 'bg-green-600 text-white' 
         : 'bg-gray-700 text-gray-300';
@@ -25,7 +25,11 @@ const Timer = memo(({ player, timeLeft, isActive }) => {
                     )}
                 </div>
                 <div className="text-3xl font-mono tracking-wider">
-                    {formatTime(timeLeft)}
+                    {waitingForOpponent ? (
+                        <span className="text-yellow-500 text-xl">Waiting...</span>
+                    ) : (
+                        formatTime(timeLeft)
+                    )}
                 </div>
             </div>
         </div>

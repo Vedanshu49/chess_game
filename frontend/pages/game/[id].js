@@ -26,7 +26,10 @@ export default function GamePage() {
     // Game engine state
     const [chess, setChess] = useState(() => {
         try {
-            return new Chess();
+            const newChess = new Chess();
+            // Ensure we start with the initial position
+            newChess.reset();
+            return newChess;
         } catch (error) {
             console.error('Failed to initialize chess engine:', error);
             return null;
@@ -35,7 +38,7 @@ export default function GamePage() {
 
     // Game state
     const [game, setGame] = useState(null);
-    const [fen, setFen] = useState('start');
+    const [fen, setFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const [history, setHistory] = useState([]);
     const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
     const [gameOver, setGameOver] = useState({ over: false, reason: '', winner: null });
@@ -74,17 +77,29 @@ export default function GamePage() {
         if (game?.fen) {
             try {
                 const newChess = new Chess();
-                newChess.load(game.fen);
+                // For a new game, start with initial position
+                if (game.fen === 'start' || !game.fen) {
+                    newChess.reset();
+                    setFen(newChess.fen());
+                } else {
+                    newChess.load(game.fen);
+                    setFen(game.fen);
+                }
                 setChess(newChess);
-                setFen(game.fen);
                 setHistory(newChess.history({ verbose: true }));
-                setCapturedPieces(calculateCapturedPieces(game.fen));
+                setCapturedPieces(calculateCapturedPieces(newChess.fen()));
+                setFenError(null); // Clear any previous errors
             } catch (error) {
                 console.error('Failed to initialize chess with FEN:', error);
                 setFenError(error.message);
             }
         }
     }, [game?.fen]);
+
+    // Check if both players have joined
+    const bothPlayersJoined = useMemo(() => {
+        return game?.creator && game?.opponent;
+    }, [game?.creator, game?.opponent]);
 
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
@@ -713,7 +728,6 @@ export default function GamePage() {
         return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-red-500 text-xl">{fenError}</div>;
     }
 
-    const bothPlayersJoined = game?.creator && game?.opponent;
     const firstMoveMade = history.length > 0;
     const timerShouldRun = !gameOver.over && isMyTurn && bothPlayersJoined && firstMoveMade;
 
