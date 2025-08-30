@@ -9,19 +9,19 @@ const Chessboard = dynamic(() => import('chessboardjsx'), {
 
 // If you need SSR fallback, handle it in the parent page/component, not here.
 
-export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
+export default function LocalChessboard({ position, onDrop, turn, playerColor }) {
   // Standard starting FEN
   const standardFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
   // FEN validation for 8x8 board
-  function isValidFen(fen) {
-    if (!fen) return false;
-    const rows = fen.split(' ')[0].split('/');
+  function isValidFen(f) {
+    if (!f) return false;
+    const rows = f.split(' ')[0].split('/');
     if (rows.length !== 8) return false;
     for (const row of rows) {
       let count = 0;
       for (const char of row) {
-        if (/[1-8]/.test(char)) count += parseInt(char);
+        if (/[1-8]/.test(char)) count += parseInt(char, 10);
         else count += 1;
       }
       if (count !== 8) return false;
@@ -30,10 +30,12 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
   }
 
   // Use fallback FEN if invalid
-  const safeFen = isValidFen(fen) ? fen : standardFEN;
+  const safeFen = isValidFen(position) ? position : standardFEN;
 
-  if (!isValidFen(fen)) {
-    return <div className="text-center text-red-500">Invalid board state detected. Please contact support.</div>;
+  // If incoming position was invalid, warn but render fallback board
+  if (!isValidFen(position)) {
+    // don't block render; show fallback board and log for debugging
+    // console.warn('Invalid FEN provided to LocalChessboard, using standard starting position.');
   }
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [legalMoves, setLegalMoves] = useState([]);
@@ -56,7 +58,7 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
         }
       } else {
         if (legalMoves.includes(square)) {
-          onMove({ sourceSquare: selectedSquare, targetSquare: square });
+          if (typeof onDrop === 'function') onDrop({ sourceSquare: selectedSquare, targetSquare: square });
           setSelectedSquare(null);
           setLegalMoves([]);
         } else if (square === selectedSquare) {
@@ -96,7 +98,7 @@ export default function LocalChessboard({ fen, onMove, turn, playerColor }) {
     <div className="w-full h-full flex items-center justify-center" style={{ minHeight: 400 }}>
       <Chessboard
         position={safeFen}
-        onDrop={onMove}
+        onDrop={onDrop}
         onSquareClick={handleSquareClick}
         draggable={true}
         width={400}

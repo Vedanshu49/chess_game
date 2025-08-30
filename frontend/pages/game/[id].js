@@ -59,6 +59,7 @@ export default function GamePage() {
     const [fenError, setFenError] = useState(null);
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
+    const [awaitingPromotion, setAwaitingPromotion] = useState(false);
     
     // Game turn state
     const [isMyTurn, setIsMyTurn] = useState(false);
@@ -241,6 +242,7 @@ export default function GamePage() {
         } finally {
             setShowPromotionModal(false);
             setPendingMove(null);
+            setAwaitingPromotion(false);
         }
     }, [pendingMove, chess, game, fen]);    // Initialize client-side rendering flag
     useEffect(() => {
@@ -429,17 +431,33 @@ export default function GamePage() {
                 setGame(newGame);
                 const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
                 try {
-                    // Let chess.js handle FEN validation
-                    chess.load(newGame.fen || startingFen);
-                    setFen(newGame.fen || startingFen);
-                    setHistory(chess.history({ verbose: true }));
-                    setCapturedPieces(calculateCapturedPieces(newGame.fen || startingFen));
-                    setFenError(null);
-                    setHistory(chess.history({ verbose: true }));
-                    setCapturedPieces(calculateCapturedPieces(newGame.fen));
-                    setFenError(null);
+                    const incomingFen = typeof newGame.fen === 'string' && newGame.fen.trim() ? newGame.fen.trim() : startingFen;
+                    // Try to load into a fresh chess instance to validate
+                    const validator = new Chess();
+                    const ok = validator.load(incomingFen);
+                    if (!ok) {
+                        console.error('Received invalid FEN for game', gameId, incomingFen);
+                        toast.error('Received invalid board FEN from server, using default starting position.');
+                        setFen(startingFen);
+                        setChess(new Chess());
+                        setHistory([]);
+                        setCapturedPieces(calculateCapturedPieces(startingFen));
+                    } else {
+                        // Valid FEN — apply it
+                        chess.load(incomingFen);
+                        setFen(incomingFen);
+                        setHistory(chess.history({ verbose: true }));
+                        setCapturedPieces(calculateCapturedPieces(incomingFen));
+                    }
                 } catch (e) {
-                    setFenError('Invalid board state detected. Please contact support.');
+                    console.error('Error processing incoming game FEN:', e);
+                    toast.error('Error processing board state, using default position.');
+                    const fallback = new Chess();
+                    fallback.reset();
+                    setChess(fallback);
+                    setFen(fallback.fen());
+                    setHistory([]);
+                    setCapturedPieces(calculateCapturedPieces(fallback.fen()));
                 }
 
                 // Fetch opponent profile if they just joined
@@ -542,7 +560,7 @@ export default function GamePage() {
     const handleMove = useCallback(async ({ sourceSquare, targetSquare }) => {
         console.log('Move attempted:', { sourceSquare, targetSquare });
         
-        if (!chess || !isMyTurn || gameOver.over || !game?.id) {
+    if (!chess || !isMyTurn || gameOver.over || !game?.id || awaitingPromotion) {
             console.log('Move rejected:', { 
                 hasChess: !!chess, 
                 isMyTurn, 
@@ -581,6 +599,7 @@ export default function GamePage() {
                 if (legalMoves.some(m => m.to === targetSquare)) {
                     console.log('Initiating pawn promotion');
                     setPendingMove({ from: sourceSquare, to: targetSquare });
+                    setAwaitingPromotion(true);
                     setShowPromotionModal(true);
                     return true;
                 }
@@ -724,9 +743,6 @@ export default function GamePage() {
     if (pageLoading || authLoading) {
         return <GameSkeleton />;
     }
-    if (fenError) {
-        return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-red-500 text-xl">{fenError}</div>;
-    }
 
     const firstMoveMade = history.length > 0;
     const timerShouldRun = !gameOver.over && isMyTurn && bothPlayersJoined && firstMoveMade;
@@ -746,7 +762,8 @@ export default function GamePage() {
                 <Timer 
                     player={player}
                     timeLeft={timeLeft}
-                    isActive={isTurn && !gameOver.over}
+                    isActive={isTurn && !gameOver.over && bothPlayersJoined}
+                    waitingForOpponent={!bothPlayersJoined}
                 />
                 <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
             </div>
@@ -756,6 +773,9 @@ export default function GamePage() {
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
             <Navbar />
+            {fenError && (
+                <div className="w-full p-3 bg-red-700 text-white text-center">{fenError}</div>
+            )}
             <div className="flex-grow flex lg:flex-row flex-col gap-4 p-4">
                 <div className="w-full lg:w-64 flex-shrink-0">
                     <PlayerInfo player={whitePlayer} color="w" isTurn={chess?.turn() === 'w'} />

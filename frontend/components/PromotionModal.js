@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 
-export default function PromotionModal({ onSelectPromotion = () => {}, color }) {
+export default function PromotionModal({ onSelectPromotion = null, onSelect = null, color }) {
   const pieces = ['q', 'r', 'b', 'n']; // Queen, Rook, Bishop, Knight
   const pieceNames = {
     q: 'Queen',
@@ -9,15 +10,36 @@ export default function PromotionModal({ onSelectPromotion = () => {}, color }) 
     n: 'Knight'
   };
 
-  const handleClick = (piece) => {
+  const [processing, setProcessing] = useState(false);
+
+  const handler = onSelectPromotion || onSelect || (async () => {});
+
+  const handleClick = async (piece) => {
+    if (processing) return;
     console.log('Promotion piece selected:', piece);
+    setProcessing(true);
     try {
-      onSelectPromotion(piece);
+      // Allow parent handler to be async and await it
+      await handler(piece);
     } catch (error) {
       console.error('Error in promotion handler:', error);
-      toast.error('Failed to promote pawn. Please try again.');
+      try { toast.error('Failed to promote pawn. Please try again.'); } catch (e) { /* ignore toast errors */ }
+    } finally {
+      setProcessing(false);
     }
-  };;
+  };
+
+  // keyboard support: q, r, b, n
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const key = e.key.toLowerCase();
+      if (['q','r','b','n'].includes(key)) {
+        handleClick(key);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [processing]);
 
   return (
     <div
@@ -30,13 +52,14 @@ export default function PromotionModal({ onSelectPromotion = () => {}, color }) 
       <div className="bg-panel p-8 rounded-xl shadow-2xl text-text text-center relative min-w-[300px]">
         <h3 className="text-2xl font-bold mb-6">Promote Pawn to:</h3>
         <div className="flex justify-center gap-6">
-          {pieces.map(piece => (
+            {pieces.map(piece => (
             <button
               key={piece}
-              className="p-3 bg-[#222222] hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent flex flex-col items-center"
-              onClick={() => handleClick(piece)}
+              className={`p-3 bg-[#222222] hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent flex flex-col items-center ${processing ? 'opacity-60 cursor-wait' : ''}`}
+              onClick={(e) => { e.stopPropagation(); handleClick(piece); }}
               tabIndex={0}
               aria-label={`Promote to ${piece}`}
+              disabled={processing}
             >
               <img
                 src={`/pieces/${color === 'w' ? 'white' : 'black'}_${piece}.svg`}
