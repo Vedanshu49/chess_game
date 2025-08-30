@@ -61,20 +61,23 @@ export default function Dashboard() {
 
   async function handleCreateCodeGame() {
     if (!user || !user.id) { toast.error("You must be logged in to create a game."); return; }
-    const inviteCode = generateInviteCode();
+    const shortCode = generateInviteCode(6);
     try {
       const { data, error } = await supabase
         .from('games')
         .insert({ 
           status: 'waiting', 
-          invite_code: inviteCode, 
+          invite_code: shortCode, 
           creator: user.id, 
-          players_joined: 1, 
+          players_joined: 1,
+          short_code: shortCode,
           fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
           white_time_left: 600, // 10 minutes in seconds
           black_time_left: 600,
           last_move_at: new Date().toISOString()
         })
+        .select()
+        .single()
         .select()
         .single();
       if (error) throw error;

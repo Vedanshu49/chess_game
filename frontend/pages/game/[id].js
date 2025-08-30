@@ -156,39 +156,50 @@ export default function GamePage() {
             }
 
                         setGame(gameData);
-                        try {
-                                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-                                // If no FEN in gameData or invalid FEN, use starting position
-                                if (!gameData.fen || !isValidFen(gameData.fen)) {
-                                    console.log('Using starting position');
-                                    chess.load(startingFen);
-                                    setFen(startingFen);
-                                    setHistory([]);
-                                    setCapturedPieces({ w: {}, b: {} });
-                                    setFenError(null);
-                                    
-                                    // Update the game with starting position if needed
-                                    if (!gameData.fen) {
-                                        await supabase
-                                            .from('games')
-                                            .update({ fen: startingFen })
-                                            .eq('id', gameId);
-                                    }
-                                } else {
-                                    chess.load(gameData.fen);
-                                    setFen(gameData.fen);
-                                    setHistory(chess.history({ verbose: true }));
-                                    setCapturedPieces(calculateCapturedPieces(gameData.fen));
-                                    setFenError(null);
-                                }
-                        } catch (e) {
-                                console.error('Error loading game state:', e);
-                                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                        const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                        
+                        // For new games or invalid states, use starting position
+                        if (!gameData.fen) {
+                            // New game - set up starting position
+                            chess.load(startingFen);
+                            setFen(startingFen);
+                            setHistory([]);
+                            setCapturedPieces({ w: {}, b: {} });
+
+                            // Update the game with starting position
+                            const { data: updatedGame, error: updateError } = await supabase
+                                .from('games')
+                                .update({ fen: startingFen })
+                                .eq('id', gameId)
+                                .select()
+                                .single();
+
+                            if (updateError) {
+                                console.error('Error updating initial game state:', updateError);
+                            } else {
+                                setGame(updatedGame);
+                            }
+                        } else {
+                            try {
+                                // Try to load existing game state
+                                chess.load(gameData.fen);
+                                setFen(gameData.fen);
+                                setHistory(chess.history({ verbose: true }));
+                                setCapturedPieces(calculateCapturedPieces(gameData.fen));
+                            } catch (e) {
+                                // If loading fails, reset to starting position
+                                console.error('Error loading game state, resetting to start:', e);
                                 chess.load(startingFen);
                                 setFen(startingFen);
                                 setHistory([]);
                                 setCapturedPieces({ w: {}, b: {} });
-                                setFenError(null);
+                                
+                                // Update database with corrected state
+                                await supabase
+                                    .from('games')
+                                    .update({ fen: startingFen })
+                                    .eq('id', gameId);
+                            }
                         }
 
             const userIsCreator = gameData.creator === user.id;
@@ -200,7 +211,7 @@ export default function GamePage() {
             setBlackPlayer(gameData.opponent_profile || { username: 'Waiting...' });
 
             if (gameData.status === 'finished') {
-                setGameOver({ over: true, reason: gameData.winner_reason, winner: gameData.winner });
+                setGameOver({ over: true, reason: gameData.winner_by, winner: gameData.winner });
             }
 
         } catch (err) {
@@ -244,9 +255,9 @@ export default function GamePage() {
                 }
 
                 if (newGame.status === 'finished') {
-                    setGameOver({ over: true, reason: newGame.winner_reason, winner: newGame.winner });
+                    setGameOver({ over: true, reason: newGame.winner_by, winner: newGame.winner });
                     const winnerUsername = newGame.winner === newGame.creator ? whitePlayer.username : blackPlayer.username;
-                    let message = `Game over! ${winnerUsername} wins by ${newGame.winner_reason}.`;
+                    let message = `Game over! ${winnerUsername} wins by ${newGame.winner_by}.`;
                     if (newGame.winner === user?.id) {
                         toast.dismiss();
                         toast.success(message);
@@ -272,25 +283,33 @@ export default function GamePage() {
         const newFen = chess.fen();
         let newStatus = game.status;
         let winner = null;
-        let winner_reason = null;
+        let winner_by = null;
 
         if (chess.isGameOver()) {
             newStatus = 'finished';
-            if (chess.isCheckmate()) winner_reason = 'checkmate';
-            else if (chess.isStalemate()) winner_reason = 'stalemate';
-            else if (chess.isDraw()) winner_reason = 'draw';
-            else if (chess.isThreefoldRepetition()) winner_reason = 'repetition';
-            else if (chess.isInsufficientMaterial()) winner_reason = 'insufficient material';
+            if (chess.isCheckmate()) winner_by = 'checkmate';
+            else if (chess.isStalemate()) winner_by = 'stalemate';
+            else if (chess.isDraw()) winner_by = 'draw';
+            else if (chess.isThreefoldRepetition()) winner_by = 'repetition';
+            else if (chess.isInsufficientMaterial()) winner_by = 'insufficient material';
             
-            if (winner_reason !== 'draw' && winner_reason !== 'stalemate') {
+            if (winner_by !== 'draw' && winner_by !== 'stalemate') {
                 winner = move.color === 'w' ? game.creator : game.opponent;
             }
         }
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('games')
-            .update({ fen: newFen, last_move_at: new Date().toISOString(), status: newStatus, winner, winner_reason })
-            .eq('id', gameId);
+            .update({ 
+                fen: newFen, 
+                last_move_at: new Date().toISOString(), 
+                status: newStatus, 
+                winner,
+                winner_by
+            })
+            .eq('id', gameId)
+            .select()
+            .single();
 
         if (error) {
             toast.dismiss();
@@ -358,22 +377,41 @@ export default function GamePage() {
     // HandlePromotion is already defined above
 
     const handleResign = async () => {
-        if (gameOver.over || !window.confirm('Are you sure you want to resign?')) return;
+        if (gameOver.over) return;
 
-        const winner = playerColor === 'w' ? game.opponent : game.creator;
-        const { error } = await supabase
-            .from('games')
-            .update({ 
-                status: 'finished', 
-                winner: winner, 
-                winner_reason: 'resignation',
-                fen: chess.fen() // Add current position
-            })
-            .eq('id', game.id);
+        // If second player hasn't joined, allow leaving without resignation
+        if (!game.opponent) {
+            // Just redirect to dashboard
+            router.push('/dashboard');
+            return;
+        }
 
-        if (error) {
+        if (!window.confirm('Are you sure you want to resign?')) return;
+
+        try {
+            const winner = playerColor === 'w' ? game.opponent : game.creator;
+            const { data, error } = await supabase
+                .from('games')
+                .update({
+                    status: 'finished',
+                    winner,
+                    winner_by: 'resignation',
+                    last_move_at: new Date().toISOString(),
+                    fen: chess.fen()
+                })
+                .eq('id', game.id)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // If successful, show success message and redirect
+            toast.success('Game resigned successfully');
+            router.push('/dashboard');
+        } catch (error) {
+            console.error('Resign error:', error);
             toast.dismiss();
-            toast.error('Error resigning: ' + error.message);
+            toast.error('Unable to resign. Please try again.');
         }
     };
 
@@ -459,10 +497,13 @@ export default function GamePage() {
                 <div className="mt-4 p-4 bg-gray-800 rounded-lg text-center">
                     <h3 className="text-lg font-semibold mb-2 text-white">Share Game Code</h3>
                     <div className="flex items-center justify-center space-x-2">
-                        <code className="bg-gray-700 px-4 py-2 rounded text-white">{game.id}</code>
+                        <code className="bg-gray-700 px-4 py-2 rounded text-white font-mono text-xl">
+                            {game.short_code || game.id.substring(0, 6).toUpperCase()}
+                        </code>
                         <button
                             onClick={() => {
-                                navigator.clipboard.writeText(game.id);
+                                const code = game.short_code || game.id.substring(0, 6).toUpperCase();
+                                navigator.clipboard.writeText(code);
                                 toast.success('Game code copied to clipboard!');
                             }}
                             className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
