@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabasejs'
+import { useState } from 'react'
 import NavBar from '@/components/NavBar'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/lib/AuthProvider' // Import useAuth
+import { useSpectateGame } from '@/hooks/useSpectateGame'
 
 export default function SpectatePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const { user, loading } = useAuth(); // Use the useAuth hook
-  const [games, setGames] = useState([])
-  const [gamesLoading, setGamesLoading] = useState(true) // Renamed to avoid conflict with auth loading
+  const { games, loading: gamesLoading } = useSpectateGame();
   const router = useRouter()
 
   useEffect(() => {
