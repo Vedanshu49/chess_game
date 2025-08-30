@@ -292,6 +292,29 @@ export default function GamePage() {
         console.debug('FEN updated:', fen, 'lastGoodFen:', lastGoodFen);
     }, [fen, lastGoodFen]);
 
+    // Expose a dev-only debug snapshot on window for easier diagnostics
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.__GAME_DEBUG = {
+                fen,
+                lastGoodFen,
+                awaitingPromotion,
+                showPromotionModal,
+                playerColor,
+                chessFen: chess?.fen ? (() => { try { return chess.fen(); } catch(e){ return String(e); } })() : null,
+                chessTurn: chess?.turn ? (() => { try { return chess.turn(); } catch(e){ return String(e); } })() : null,
+                isMyTurn,
+                gameSnapshot: game,
+                pageLoading,
+                authLoading
+            };
+        } catch (e) {
+            // ignore in production
+        }
+        // keep window.__GAME_DEBUG updated whenever these values change
+    }, [fen, lastGoodFen, awaitingPromotion, showPromotionModal, playerColor, chess, isMyTurn, game, pageLoading, authLoading]);
+
     // Load game data
     useEffect(() => {
         if (!gameId || !user) return;
