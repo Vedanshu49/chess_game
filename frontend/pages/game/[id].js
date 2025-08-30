@@ -76,7 +76,7 @@ export default function GamePage() {
 
     // Initialize chess instance when game data changes
     useEffect(() => {
-        if (game?.fen) {
+        if (game) {
             try {
                 const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
                 const incomingFen = typeof game.fen === 'string' && game.fen.trim() ? game.fen.trim() : startingFen;
@@ -122,7 +122,7 @@ export default function GamePage() {
                 setFenError(null);
             }
         }
-    }, [game?.fen]);
+    }, [game]);
 
     // Check if both players have joined
     const bothPlayersJoined = useMemo(() => {
@@ -404,7 +404,7 @@ export default function GamePage() {
 
     // Initialize game data
     const fetchGameData = useCallback(async () => {
-        if (!gameId || !user || !chess) return;
+        if (!gameId || !user) return;
 
         try {
             setPageLoading(true);
@@ -426,53 +426,16 @@ export default function GamePage() {
             }
 
             setGame(gameData);
-            // record last known good FEN from server on load
-            setLastGoodFen(gameData.fen || startingFen);
-            const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-                        
-                        // For new games or invalid states, use starting position
-                        if (!gameData.fen) {
-                            // New game - set up starting position
-                            chess.load(startingFen);
-                            setFen(startingFen);
-                            setHistory([]);
-                            setCapturedPieces({ w: {}, b: {} });
 
-                            // Update the game with starting position
-                            const { data: updatedGame, error: updateError } = await supabase
-                                .from('games')
-                                .update({ fen: startingFen })
-                                .eq('id', gameId)
-                                .select()
-                                .single();
-
-                            if (updateError) {
-                                console.error('Error updating initial game state:', updateError);
-                            } else {
-                                setGame(updatedGame);
-                            }
-                        } else {
-                            try {
-                                // Try to load existing game state
-                                chess.load(gameData.fen);
-                                setFen(gameData.fen);
-                                setHistory(chess.history({ verbose: true }));
-                                setCapturedPieces(calculateCapturedPieces(gameData.fen));
-                            } catch (e) {
-                                // If loading fails, reset to starting position
-                                console.error('Error loading game state, resetting to start:', e);
-                                chess.load(startingFen);
-                                setFen(startingFen);
-                                setHistory([]);
-                                setCapturedPieces({ w: {}, b: {} });
-                                
-                                // Update database with corrected state
-                                await supabase
-                                    .from('games')
-                                    .update({ fen: startingFen })
-                                    .eq('id', gameId);
-                            }
-                        }
+            // If the game is new and has no FEN, update the database with the starting position.
+            // The main useEffect hook will handle setting the board state.
+            if (!gameData.fen) {
+                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                await supabase
+                    .from('games')
+                    .update({ fen: startingFen })
+                    .eq('id', gameId);
+            }
 
             const userIsCreator = gameData.creator === user.id;
             const userIsOpponent = gameData.opponent === user.id;
@@ -493,7 +456,7 @@ export default function GamePage() {
         } finally {
             setPageLoading(false);
         }
-    }, [gameId, user, chess, router]);
+    }, [gameId, user, router]);
 
     useEffect(() => {
         if (!authLoading) fetchGameData();
@@ -509,44 +472,14 @@ export default function GamePage() {
             async (payload) => {
                 const newGame = payload.new;
                 setGame(newGame);
-                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-                try {
-                    const incomingFen = typeof newGame.fen === 'string' && newGame.fen.trim() ? newGame.fen.trim() : startingFen;
-                    // Try to load into a fresh chess instance to validate
-                    const validator = new Chess();
-                    const ok = validator.load(incomingFen);
-                    if (!ok) {
-                        // Received malformed FEN from server — fall back to last known good position
-                        const fallbackFen = lastGoodFen || startingFen;
-                        console.warn('Received invalid FEN for game', gameId, incomingFen, 'falling back to', fallbackFen);
-                        console.debug('State at invalid FEN: playerColor=', playerColor, 'isMyTurn=', isMyTurn, 'awaitingPromotion=', awaitingPromotion, 'currentChessFen=', chess?.fen());
-                        const safeChess = new Chess();
-                        safeChess.load(fallbackFen);
-                        setFen(fallbackFen);
-                        setChess(safeChess);
-                        setHistory(safeChess.history({ verbose: true }));
-                        setCapturedPieces(calculateCapturedPieces(fallbackFen));
-                    } else {
-                        // Valid FEN — apply it and record as last good
-                        chess.load(incomingFen);
-                        setFen(incomingFen);
-                        setLastGoodFen(incomingFen);
-                        setHistory(chess.history({ verbose: true }));
-                        setCapturedPieces(calculateCapturedPieces(incomingFen));
-                    }
-                } catch (e) {
-                    console.error('Error processing incoming game FEN:', e);
-                    toast.error('Error processing board state, using default position.');
-                    const fallback = new Chess();
-                    fallback.reset();
-                    setChess(fallback);
-                    setFen(fallback.fen());
-                    setHistory([]);
-                    setCapturedPieces(calculateCapturedPieces(fallback.fen()));
-                }
+
+                // The useEffect hook that depends on `game` will handle FEN updates.
 
                 // Fetch opponent profile if they just joined
                 if (payload.old.opponent === null && newGame.opponent !== null) {
+                    const { data: opponentProfile } = await supabase.from('profiles').select('username, rating').eq('id', newGame.opponent).single();
+                    setBlackPlayer(opponentProfile || { username: 'Player 2' });
+                }
                     const { data: opponentProfile } = await supabase.from('profiles').select('username, rating').eq('id', newGame.opponent).single();
                     setBlackPlayer(opponentProfile || { username: 'Player 2' });
                 }
