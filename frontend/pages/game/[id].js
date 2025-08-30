@@ -157,13 +157,23 @@ export default function GamePage() {
 
                         setGame(gameData);
                         try {
-                                if (!isValidFen(gameData.fen)) {
-                                    console.error('Invalid FEN detected:', gameData.fen);
-                                    setFenError('Invalid board state detected. Please contact support.');
-                                    chess.load('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-                                    setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-                                    setHistory(chess.history({ verbose: true }));
-                                    setCapturedPieces(calculateCapturedPieces('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'));
+                                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                                // If no FEN in gameData or invalid FEN, use starting position
+                                if (!gameData.fen || !isValidFen(gameData.fen)) {
+                                    console.log('Using starting position');
+                                    chess.load(startingFen);
+                                    setFen(startingFen);
+                                    setHistory([]);
+                                    setCapturedPieces({ w: {}, b: {} });
+                                    setFenError(null);
+                                    
+                                    // Update the game with starting position if needed
+                                    if (!gameData.fen) {
+                                        await supabase
+                                            .from('games')
+                                            .update({ fen: startingFen })
+                                            .eq('id', gameId);
+                                    }
                                 } else {
                                     chess.load(gameData.fen);
                                     setFen(gameData.fen);
@@ -172,7 +182,13 @@ export default function GamePage() {
                                     setFenError(null);
                                 }
                         } catch (e) {
-                                setFenError('Invalid board state detected. Please contact support.');
+                                console.error('Error loading game state:', e);
+                                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                                chess.load(startingFen);
+                                setFen(startingFen);
+                                setHistory([]);
+                                setCapturedPieces({ w: {}, b: {} });
+                                setFenError(null);
                         }
 
             const userIsCreator = gameData.creator === user.id;
@@ -347,11 +363,18 @@ export default function GamePage() {
         const winner = playerColor === 'w' ? game.opponent : game.creator;
         const { error } = await supabase
             .from('games')
-            .update({ status: 'finished', winner: winner, winner_reason: 'resignation' })
-            .eq('id', gameId);
+            .update({ 
+                status: 'finished', 
+                winner: winner, 
+                winner_reason: 'resignation',
+                fen: chess.fen() // Add current position
+            })
+            .eq('id', game.id);
 
-        if (error) toast.dismiss();
-        toast.error('Error resigning: ' + error.message);
+        if (error) {
+            toast.dismiss();
+            toast.error('Error resigning: ' + error.message);
+        }
     };
 
     if (pageLoading || authLoading) {
@@ -429,6 +452,25 @@ export default function GamePage() {
                     onSelectPromotion={handlePromotion}
                     color={playerColor}
                 />
+            )}
+            
+            {/* Game Code Display */}
+            {game && (
+                <div className="mt-4 p-4 bg-gray-800 rounded-lg text-center">
+                    <h3 className="text-lg font-semibold mb-2 text-white">Share Game Code</h3>
+                    <div className="flex items-center justify-center space-x-2">
+                        <code className="bg-gray-700 px-4 py-2 rounded text-white">{game.id}</code>
+                        <button
+                            onClick={() => {
+                                navigator.clipboard.writeText(game.id);
+                                toast.success('Game code copied to clipboard!');
+                            }}
+                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                            Copy
+                        </button>
+                    </div>
+                </div>
             )}
             <Toaster />
         </div>
