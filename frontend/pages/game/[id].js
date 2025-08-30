@@ -24,7 +24,7 @@ export default function GamePage() {
     const { user, loading: authLoading } = useAuth();
 
     // Game engine state
-    const [chess] = useState(() => {
+    const [chess, setChess] = useState(() => {
         try {
             return new Chess();
         } catch (error) {
@@ -62,6 +62,23 @@ export default function GamePage() {
         if (!chess || !playerColor || gameOver.over) return false;
         return chess.turn() === playerColor;
     }, [chess, playerColor, gameOver.over]);
+
+    // Initialize chess instance when game data changes
+    useEffect(() => {
+        if (game?.fen) {
+            try {
+                const newChess = new Chess();
+                newChess.load(game.fen);
+                setChess(newChess);
+                setFen(game.fen);
+                setHistory(newChess.history({ verbose: true }));
+                setCapturedPieces(calculateCapturedPieces(game.fen));
+            } catch (error) {
+                console.error('Failed to initialize chess with FEN:', error);
+                setFenError(error.message);
+            }
+        }
+    }, [game?.fen]);
 
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
@@ -204,9 +221,51 @@ export default function GamePage() {
             setShowPromotionModal(false);
             setPendingMove(null);
         }
-    }, [pendingMove, chess, game, fen]);    useEffect(() => {
+    }, [pendingMove, chess, game, fen]);    // Initialize client-side rendering flag
+    useEffect(() => {
         setIsClient(true);
     }, []);
+
+    // Load game data
+    useEffect(() => {
+        if (!gameId || !user) return;
+
+        const loadGame = async () => {
+            try {
+                const { data: gameData, error } = await supabase
+                    .from('games')
+                    .select('*')
+                    .eq('id', gameId)
+                    .single();
+
+                if (error) throw error;
+                
+                setGame(gameData);
+                setPlayerColor(gameData.creator === user.id ? 'w' : 'b');
+                setWhiteTime(gameData.white_time_left);
+                setBlackTime(gameData.black_time_left);
+                setLastMoveTime(new Date(gameData.last_move_at).getTime());
+                
+                // Set player information
+                setWhitePlayer({
+                    username: gameData.creator_username || 'Player 1',
+                    id: gameData.creator
+                });
+                setBlackPlayer({
+                    username: gameData.opponent_username || 'Player 2',
+                    id: gameData.opponent
+                });
+
+                setPageLoading(false);
+            } catch (error) {
+                console.error('Error loading game:', error);
+                toast.error('Failed to load game data');
+                setPageLoading(false);
+            }
+        };
+
+        loadGame();
+    }, [gameId, user]);
 
     // Timer update effect
     useEffect(() => {
