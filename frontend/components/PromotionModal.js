@@ -35,6 +35,12 @@ export default function PromotionModal({ onSelectPromotion = null, onSelect = nu
       const key = e.key.toLowerCase();
       if (['q','r','b','n'].includes(key)) {
         handleClick(key);
+      } else if (key === 'escape') {
+        // allow cancel
+        if (!processing) {
+          setProcessing(true);
+          Promise.resolve(handler(null)).finally(() => setProcessing(false));
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -48,6 +54,12 @@ export default function PromotionModal({ onSelectPromotion = null, onSelect = nu
       tabIndex={0}
       aria-modal="true"
       role="dialog"
+      onClick={() => {
+        if (!processing) {
+          setProcessing(true);
+          Promise.resolve(handler(null)).finally(() => setProcessing(false));
+        }
+      }}
     >
       <div className="bg-panel p-8 rounded-xl shadow-2xl text-text text-center relative min-w-[300px]">
         <h3 className="text-2xl font-bold mb-6">Promote Pawn to:</h3>

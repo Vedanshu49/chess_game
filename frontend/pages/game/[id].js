@@ -57,6 +57,7 @@ export default function GamePage() {
     const [isClient, setIsClient] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
     const [fenError, setFenError] = useState(null);
+    const [lastGoodFen, setLastGoodFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
     const [awaitingPromotion, setAwaitingPromotion] = useState(false);
@@ -77,22 +78,40 @@ export default function GamePage() {
     useEffect(() => {
         if (game?.fen) {
             try {
+                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                const incomingFen = typeof game.fen === 'string' && game.fen.trim() ? game.fen.trim() : startingFen;
+                const validator = new Chess();
+                const ok = validator.load(incomingFen);
                 const newChess = new Chess();
-                // For a new game, start with initial position
-                if (game.fen === 'start' || !game.fen) {
+                if (!ok) {
+                    console.error('Invalid FEN in game data, falling back to starting position:', incomingFen);
+                    toast.error('Invalid board state received; using default starting position.');
                     newChess.reset();
                     setFen(newChess.fen());
+                    // Do not overwrite lastGoodFen when incoming FEN is invalid
+                    setHistory([]);
+                    setCapturedPieces(calculateCapturedPieces(newChess.fen()));
                 } else {
-                    newChess.load(game.fen);
-                    setFen(game.fen);
+                    newChess.load(incomingFen);
+                    setLastGoodFen(incomingFen);
+                    setFen(incomingFen);
+                    setHistory(newChess.history({ verbose: true }));
+                    setCapturedPieces(calculateCapturedPieces(incomingFen));
                 }
                 setChess(newChess);
-                setHistory(newChess.history({ verbose: true }));
-                setCapturedPieces(calculateCapturedPieces(newChess.fen()));
-                setFenError(null); // Clear any previous errors
+                setFenError(null);
             } catch (error) {
                 console.error('Failed to initialize chess with FEN:', error);
-                setFenError(error.message);
+                // fallback to starting position rather than blocking the UI
+                const fallback = new Chess();
+                fallback.reset();
+                setChess(fallback);
+                setFen(fallback.fen());
+                // keep lastGoodFen untouched on unexpected error
+                setHistory([]);
+                setCapturedPieces(calculateCapturedPieces(fallback.fen()));
+                toast.error('Error initializing board state; using default position.');
+                setFenError(null);
             }
         }
     }, [game?.fen]);
@@ -144,7 +163,16 @@ export default function GamePage() {
     // Handle pawn promotion
     const handlePromotion = useCallback(async (pieceType) => {
         console.log('Handling promotion:', { pieceType, pendingMove });
-        
+
+        // If null, user cancelled promotion
+        if (pieceType === null) {
+            console.log('Promotion cancelled by user');
+            setShowPromotionModal(false);
+            setPendingMove(null);
+            setAwaitingPromotion(false);
+            return false;
+        }
+
         if (!pendingMove || !chess || !game?.id) {
             console.error('Invalid promotion state:', { 
                 hasPendingMove: !!pendingMove, 
@@ -173,6 +201,7 @@ export default function GamePage() {
             
             // Update local state
             setFen(newFen);
+                setLastGoodFen(newFen);
             setHistory(chess.history({ verbose: true }));
             setCapturedPieces(calculateCapturedPieces(newFen));
 
@@ -248,6 +277,20 @@ export default function GamePage() {
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    // If the promotion modal is closed but awaitingPromotion remains true, clear the stale flag
+    useEffect(() => {
+        if (!showPromotionModal && awaitingPromotion) {
+            console.warn('Clearing stale awaitingPromotion flag because promotion modal is closed');
+            setAwaitingPromotion(false);
+            setPendingMove(null);
+        }
+    }, [showPromotionModal, awaitingPromotion]);
+
+    // Lightweight debug logs for fen changes
+    useEffect(() => {
+        console.debug('FEN updated:', fen, 'lastGoodFen:', lastGoodFen);
+    }, [fen, lastGoodFen]);
 
     // Load game data
     useEffect(() => {
@@ -436,16 +479,22 @@ export default function GamePage() {
                     const validator = new Chess();
                     const ok = validator.load(incomingFen);
                     if (!ok) {
-                        console.error('Received invalid FEN for game', gameId, incomingFen);
-                        toast.error('Received invalid board FEN from server, using default starting position.');
-                        setFen(startingFen);
-                        setChess(new Chess());
-                        setHistory([]);
-                        setCapturedPieces(calculateCapturedPieces(startingFen));
+                        // Received malformed FEN from server — fall back to last known good position
+                        const fallbackFen = lastGoodFen || startingFen;
+                        console.error('Received invalid FEN for game', gameId, incomingFen, 'falling back to', fallbackFen);
+                        console.debug('State at invalid FEN: playerColor=', playerColor, 'isMyTurn=', isMyTurn, 'awaitingPromotion=', awaitingPromotion, 'currentChessFen=', chess?.fen());
+                        toast.error('Received invalid board FEN from server, using last known good position.');
+                        const safeChess = new Chess();
+                        safeChess.load(fallbackFen);
+                        setFen(fallbackFen);
+                        setChess(safeChess);
+                        setHistory(safeChess.history({ verbose: true }));
+                        setCapturedPieces(calculateCapturedPieces(fallbackFen));
                     } else {
-                        // Valid FEN — apply it
+                        // Valid FEN — apply it and record as last good
                         chess.load(incomingFen);
                         setFen(incomingFen);
+                        setLastGoodFen(incomingFen);
                         setHistory(chess.history({ verbose: true }));
                         setCapturedPieces(calculateCapturedPieces(incomingFen));
                     }
@@ -565,7 +614,9 @@ export default function GamePage() {
                 hasChess: !!chess, 
                 isMyTurn, 
                 isGameOver: gameOver.over,
-                gameId: game?.id
+                gameId: game?.id,
+                awaitingPromotion,
+                fenError
             });
             return false;
         }
@@ -624,6 +675,8 @@ export default function GamePage() {
             const now = new Date();
             const newFen = chess.fen();
             
+            // record last-known-good FEN
+            setLastGoodFen(newFen);
             // Update local state
             setFen(newFen);
             setHistory(chess.history({ verbose: true }));
@@ -774,7 +827,31 @@ export default function GamePage() {
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
             <Navbar />
             {fenError && (
-                <div className="w-full p-3 bg-red-700 text-white text-center">{fenError}</div>
+                <div className="w-full p-3 bg-red-700 text-white text-center flex items-center justify-between gap-4">
+                    <div className="flex-1 text-left">
+                        <div className="font-semibold">{fenError}</div>
+                        <div className="text-sm opacity-75 mt-1">Debug: playerColor={playerColor || 'null'} | isMyTurn={String(isMyTurn)} | awaitingPromotion={String(awaitingPromotion)}</div>
+                    </div>
+                    <div className="flex-shrink-0">
+                        <button
+                            className="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700"
+                            onClick={() => { 
+                                console.log('fenError dismissed by user — restoring lastGoodFen to chess instance', lastGoodFen);
+                                setFenError(null); 
+                                try {
+                                    if (lastGoodFen && chess) {
+                                        chess.load(lastGoodFen);
+                                        setFen(lastGoodFen);
+                                        setHistory(chess.history({ verbose: true }));
+                                        setCapturedPieces(calculateCapturedPieces(lastGoodFen));
+                                    }
+                                } catch (e) {
+                                    console.error('Error restoring lastGoodFen on dismiss:', e);
+                                }
+                            }}
+                        >Dismiss</button>
+                    </div>
+                </div>
             )}
             <div className="flex-grow flex lg:flex-row flex-col gap-4 p-4">
                 <div className="w-full lg:w-64 flex-shrink-0">
