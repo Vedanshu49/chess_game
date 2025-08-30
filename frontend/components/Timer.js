@@ -35,4 +35,3 @@ const Timer = memo(({ player, timeLeft, isActive }) => {
 Timer.displayName = 'Timer';
 
 export default Timer;
-}
