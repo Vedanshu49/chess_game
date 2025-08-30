@@ -1,17 +1,23 @@
 import React from 'react';
 
-export default function PromotionModal({ onSelectPromotion, color }) {
+export default function PromotionModal({ onSelectPromotion = () => {}, color }) {
   const pieces = ['q', 'r', 'b', 'n']; // Queen, Rook, Bishop, Knight
+  const pieceNames = {
+    q: 'Queen',
+    r: 'Rook',
+    b: 'Bishop',
+    n: 'Knight'
+  };
 
-  // Defensive: fallback if handler is missing
   const handleClick = (piece) => {
     console.log('Promotion piece selected:', piece);
-    if (typeof onSelectPromotion === 'function') {
+    try {
       onSelectPromotion(piece);
-    } else {
-      alert('Promotion handler missing!');
+    } catch (error) {
+      console.error('Error in promotion handler:', error);
+      toast.error('Failed to promote pawn. Please try again.');
     }
-  };
+  };;
 
   return (
     <div

@@ -19,6 +19,10 @@ const Chessboard = dynamic(() => import('../../components/LocalChessboard'), { s
 
 
 export default function GamePage() {
+    const router = useRouter();
+    const { id: gameId } = router.query;
+    const { user, loading: authLoading } = useAuth();
+
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
         if (!gameOver.over) {
@@ -50,9 +54,6 @@ export default function GamePage() {
             };
         }
     }, [gameOver.over, router]);
-    const router = useRouter();
-    const { id: gameId } = router.query;
-    const { user, loading: authLoading } = useAuth();
 
     const [game, setGame] = useState(null);
     const [chess, setChess] = useState(null);
@@ -301,13 +302,40 @@ export default function GamePage() {
         }
     }, [chess, isMyTurn, gameOver.over, playerColor, updateBackendWithMove]);
 
-    const handlePromotion = useCallback((promotionPiece) => {
-        if (!chess || !pendingMove) return;
-        const result = chess.move({ ...pendingMove, promotion: promotionPiece });
-        if (result) updateBackendWithMove(result);
-        setShowPromotionModal(false);
-        setPendingMove(null);
-    }, [chess, pendingMove, updateBackendWithMove]);
+    const handlePromotion = useCallback(async (promotionPiece) => {
+        if (!chess || !pendingMove) {
+            toast.error('Error during promotion: invalid state');
+            setShowPromotionModal(false);
+            setPendingMove(null);
+            return;
+        }
+        try {
+            const result = chess.move({ 
+                from: pendingMove.from, 
+                to: pendingMove.to, 
+                promotion: promotionPiece 
+            });
+            if (result) {
+                setFen(chess.fen());
+                await updateBackendWithMove(result);
+                toast.success('Pawn promoted successfully!');
+            } else {
+                toast.error('Invalid promotion move');
+                chess.undo();  // Ensure we revert any invalid state
+                setFen(chess.fen());
+            }
+        } catch (err) {
+            console.error('Promotion error:', err);
+            toast.error('Error during promotion: ' + (err.message || 'unknown error'));
+            if (chess) {
+                chess.undo();  // Revert the chess state on error
+                setFen(chess.fen());
+            }
+        } finally {
+            setShowPromotionModal(false);
+            setPendingMove(null);
+        }
+    }, [chess, pendingMove, updateBackendWithMove, setFen]);
 
     const handleResign = async () => {
         if (gameOver.over || !window.confirm('Are you sure you want to resign?')) return;
@@ -333,19 +361,72 @@ export default function GamePage() {
     const firstMoveMade = history.length > 0;
     const timerShouldRun = !gameOver.over && isMyTurn && bothPlayersJoined && firstMoveMade;
 
-    const PlayerInfo = ({ player, color, isTurn }) => (
-        <div className={`p-3 rounded-lg ${isTurn ? 'bg-blue-600' : 'bg-gray-700'} transition-colors duration-300`}>
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-800 rounded-full"></div> {/* Placeholder for Avatar */}
-                <div>
-                    <h3 className="font-bold text-lg">{player?.username || '...'}</h3>
-                    <p className="text-sm text-gray-300">Rating: {player?.rating || 'N/A'}</p>
+    const PlayerInfo = ({ player, color, isTurn }) => {
+        const shouldRunTimer = timerShouldRun && isTurn && bothPlayersJoined;
+        const timeLeft = color === 'w' ? game.white_time_left : game.black_time_left;
+        
+        return (
+            <div className={`p-3 rounded-lg ${isTurn ? 'bg-blue-600' : 'bg-gray-700'} transition-colors duration-300`}>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-800 rounded-full"></div>
+                    <div>
+                        <h3 className="font-bold text-lg">{player?.username || '...'}</h3>
+                        <p className="text-sm text-gray-300">Rating: {player?.rating || 'N/A'}</p>
+                    </div>
                 </div>
+                <Timer 
+                    key={`${color}-${timeLeft}-${shouldRunTimer}`}
+                    initialTime={timeLeft} 
+                    isRunning={shouldRunTimer} 
+                />
+                <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
             </div>
-            <Timer initialTime={color === 'w' ? game.white_time_left : game.black_time_left} isRunning={timerShouldRun && isTurn} />
-            <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
-        </div>
-    );
+        );
+    };
 
     return (
-        <>
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+            <Navbar />
+            <div className="flex-grow flex lg:flex-row flex-col gap-4 p-4">
+                <div className="w-full lg:w-64 flex-shrink-0">
+                    <PlayerInfo player={whitePlayer} color="w" isTurn={chess?.turn() === 'w'} />
+                </div>
+                
+                <div className="flex-grow flex justify-center items-start">
+                    <div className="w-full max-w-[75vh] aspect-square">
+                        {isClient && <Chessboard 
+                            position={fen}
+                            onDrop={handleMove}
+                            orientation={playerColor || 'white'}
+                            draggable={!gameOver.over && isMyTurn}
+                        />}
+                    </div>
+                </div>
+
+                <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-4">
+                    <PlayerInfo player={blackPlayer} color="b" isTurn={chess?.turn() === 'b'} />
+                    <div className="bg-panel p-4 rounded-lg shadow-lg">
+                        <MoveList history={history} />
+                        {!gameOver.over && (
+                            <button
+                                onClick={handleResign}
+                                className="mt-4 w-full bg-red-600 hover:bg-red-700 py-2 rounded-lg font-semibold"
+                            >
+                                Resign
+                            </button>
+                        )}
+                    </div>
+                    {game && <Chat gameId={game.id} user={user} />}
+                </div>
+            </div>
+
+            {showPromotionModal && (
+                <PromotionModal
+                    onSelectPromotion={handlePromotion}
+                    color={playerColor}
+                />
+            )}
+            <Toaster />
+        </div>
+    );
+}

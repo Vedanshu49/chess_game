@@ -65,7 +65,16 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from('games')
-        .insert({ status: 'waiting', invite_code: inviteCode, creator: user.id, players_joined: 1, fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' })
+        .insert({ 
+          status: 'waiting', 
+          invite_code: inviteCode, 
+          creator: user.id, 
+          players_joined: 1, 
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+          white_time_left: 600, // 10 minutes in seconds
+          black_time_left: 600,
+          last_move_at: new Date().toISOString()
+        })
         .select()
         .single();
       if (error) throw error;
@@ -81,27 +90,62 @@ export default function Dashboard() {
     setSearchingGameId(null);
 
     try {
-      const { data, error } = await supabase.rpc('matchmake_or_create_game', { player_id: user.id });
+      // First try to find an existing game
+      const { data: existingGames, error: searchError } = await supabase
+        .from('games')
+        .select('id')
+        .eq('status', 'waiting')
+        .is('invite_code', null)
+        .neq('creator', user.id)
+        .is('opponent', null)
+        .limit(1);
 
-      if (error) throw error;
+      if (searchError) throw searchError;
 
-      if (data && data.length > 0) {
-        const { game_id, is_new_game } = data[0];
-        if (is_new_game) {
-          setSearchingGameId(game_id);
-          // Stay on this page and wait for an opponent
-        } else {
-          setSearching(false);
-          toast.success('Game found! Joining...');
-          router.push(`/game/${game_id}`);
-        }
+      if (existingGames && existingGames.length > 0) {
+        // Join existing game
+        const gameId = existingGames[0].id;
+        const { error: joinError } = await supabase
+          .from('games')
+          .update({ 
+            opponent: user.id,
+            status: 'in_progress',
+            players_joined: 2,
+            last_move_at: new Date().toISOString()
+          })
+          .eq('id', gameId);
+
+        if (joinError) throw joinError;
+        
+        setSearching(false);
+        toast.success('Game found! Joining...');
+        router.push(`/game/${gameId}`);
       } else {
-          throw new Error("Matchmaking failed to return a game.");
+        // Create new game
+        const { data: newGame, error: createError } = await supabase
+          .from('games')
+          .insert({
+            creator: user.id,
+            status: 'waiting',
+            players_joined: 1,
+            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            white_time_left: 600,
+            black_time_left: 600,
+            last_move_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        
+        setSearchingGameId(newGame.id);
       }
+    
     } catch (error) {
       console.error("Error in handlePlayOnline:", error);
       toast.error("Matchmaking error: " + error.message);
       setSearching(false);
+      setSearchingGameId(null);
     }
   }
 
