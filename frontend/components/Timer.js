@@ -1,52 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 
-export default function Timer({ initialTime = 600, isRunning = false }) {
-  const [time, setTime] = useState(initialTime);
-  const lastTickRef = useRef(Date.now());
-  const intervalRef = useRef(null);
+// This component now only knows how to format and display seconds.
+const formatTime = (seconds) => {
+    if (isNaN(seconds) || seconds < 0) seconds = 0;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
 
-  // Reset timer when initialTime changes
-  useEffect(() => {
-    setTime(initialTime);
-    lastTickRef.current = Date.now();
-  }, [initialTime]);
-
-  // Handle timer running state
-  useEffect(() => {
-    if (isRunning && time > 0) {
-      lastTickRef.current = Date.now(); // Reset reference time when starting
-      
-      intervalRef.current = setInterval(() => {
-        const now = Date.now();
-        const elapsed = (now - lastTickRef.current) / 1000;
-        
-        setTime(currentTime => {
-          const newTime = Math.max(0, currentTime - elapsed);
-          lastTickRef.current = now;
-          return newTime;
-        });
-      }, 100);
-      
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      };
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-  }, [isRunning, time]);
-
-  const formatTime = (seconds) => {
-    const roundedSeconds = Math.floor(seconds);
-    const minutes = Math.floor(roundedSeconds / 60);
-    const secs = roundedSeconds % 60;
-    return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
-  };
+export default function Timer({ player, timeLeft, isActive }) {
+    const activeClass = isActive ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300';
 
   return (
     <div className="bg-panel p-4 rounded-md text-center shadow-lg">

@@ -39,6 +39,8 @@ export default function GamePage() {
     const [pendingMove, setPendingMove] = useState(null);
     const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
     const [isClient, setIsClient] = useState(false);
+    const [whiteTime, setWhiteTime] = useState(600); // Default 10 minutes
+    const [blackTime, setBlackTime] = useState(600);
 
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
@@ -81,63 +83,92 @@ export default function GamePage() {
 
     // Handle pawn promotion
     const handlePromotion = useCallback(async (promotionPiece) => {
-        if (!pendingMove || !chess) {
+        if (!chess || !pendingMove) {
+            console.error("Promotion attempted without proper setup");
             setShowPromotionModal(false);
+            setPendingMove(null);
             return;
         }
 
         try {
-            const { from, to } = pendingMove;
-            const move = chess.move({ from, to, promotion: promotionPiece });
-            
-            if (move) {
-                const newFen = chess.fen();
-                setFen(newFen);
-                setHistory(chess.history({ verbose: true }));
-                setCapturedPieces(calculateCapturedPieces(newFen));
-                
-                // Update the game state in Supabase
-                if (game?.id) {
-                    const { error } = await supabase
-                        .from('games')
-                        .update({
-                            fen: newFen,
-                            last_move: JSON.stringify(move),
-                            last_move_at: new Date().toISOString()
-                        })
-                        .eq('id', game.id);
-                        
-                    if (error) throw error;
-                }
+            // Validate the current state
+            if (!isMyTurn || gameOver.over) {
+                throw new Error("Invalid game state for promotion");
             }
+
+            // Create a temporary chess instance to validate the move
+            const tempChess = new Chess(chess.fen());
+            const moveResult = tempChess.move({
+                from: pendingMove.from,
+                to: pendingMove.to,
+                promotion: promotionPiece
+            });
+
+            if (!moveResult) {
+                throw new Error("Invalid promotion move");
+            }
+
+            // Apply the move to the actual game
+            const move = chess.move({
+                from: pendingMove.from,
+                to: pendingMove.to,
+                promotion: promotionPiece
+            });
+
+            if (!move) {
+                throw new Error("Failed to apply promotion move");
+            }
+
+            const newFen = chess.fen();
+            setFen(newFen);
+            setHistory(chess.history({ verbose: true }));
+            setCapturedPieces(calculateCapturedPieces(newFen));
+
+            // Update the backend
+            await updateBackendWithMove(move);
+            
         } catch (error) {
             console.error('Error in promotion:', error);
-            toast.error('Failed to promote pawn. Please try again.');
+            chess.load(fen); // Reset to previous position
+            toast.error(error.message || 'Failed to promote pawn. Please try again.');
         } finally {
             setShowPromotionModal(false);
             setPendingMove(null);
         }
-    }, [chess, pendingMove, game?.id]);
-
-    // Helper to validate FEN for 8x8 board
-    function isValidFen(fen) {
-        if (!fen) return false;
-        const rows = fen.split(' ')[0].split('/');
-        if (rows.length !== 8) return false;
-        for (const row of rows) {
-            let count = 0;
-            for (const char of row) {
-                if (/[1-8]/.test(char)) count += parseInt(char);
-                else count += 1;
-            }
-            if (count !== 8) return false;
-        }
-        return true;
-    }
+    }, [chess, pendingMove, isMyTurn, gameOver.over, fen, updateBackendWithMove]);
 
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    // Timer update effect
+    useEffect(() => {
+        if (!game || gameOver.over || !chess) {
+            return;
+        }
+
+        // Initialize timer state from the game object
+        setWhiteTime(game.white_time_left);
+        setBlackTime(game.black_time_left);
+
+        const interval = setInterval(() => {
+            const now = new Date();
+            const lastMoveAt = new Date(game.last_move_at);
+            const elapsedSeconds = Math.floor((now - lastMoveAt) / 1000);
+
+            if (chess.turn() === 'w') {
+                const remaining = game.white_time_left - elapsedSeconds;
+                setWhiteTime(remaining > 0 ? remaining : 0);
+                setBlackTime(game.black_time_left); // Black's time is static
+            } else {
+                const remaining = game.black_time_left - elapsedSeconds;
+                setBlackTime(remaining > 0 ? remaining : 0);
+                setWhiteTime(game.white_time_left); // White's time is static
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [game, gameOver.over, chess]);
 
     // Initialize chess.js
     useEffect(() => {
@@ -244,10 +275,14 @@ export default function GamePage() {
             async (payload) => {
                 const newGame = payload.new;
                 setGame(newGame);
+                const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
                 try {
-                    if (!isValidFen(newGame.fen)) throw new Error('Invalid FEN');
-                    chess.load(newGame.fen);
-                    setFen(newGame.fen);
+                    // Let chess.js handle FEN validation
+                    chess.load(newGame.fen || startingFen);
+                    setFen(newGame.fen || startingFen);
+                    setHistory(chess.history({ verbose: true }));
+                    setCapturedPieces(calculateCapturedPieces(newGame.fen || startingFen));
+                    setFenError(null);
                     setHistory(chess.history({ verbose: true }));
                     setCapturedPieces(calculateCapturedPieces(newGame.fen));
                     setFenError(null);
@@ -305,14 +340,40 @@ export default function GamePage() {
             }
         }
 
+        const now = new Date();
+        const lastMoveAt = new Date(game.last_move_at);
+        const elapsedSeconds = Math.floor((now - lastMoveAt) / 1000);
+
+        // Update the time for the player who just moved
+        let newWhiteTime = game.white_time_left;
+        let newBlackTime = game.black_time_left;
+
+        if (move.color === 'w') {
+            newWhiteTime = Math.max(0, game.white_time_left - elapsedSeconds);
+            if (newWhiteTime === 0) {
+                newStatus = 'finished';
+                winner = game.opponent;
+                winner_by = 'timeout';
+            }
+        } else {
+            newBlackTime = Math.max(0, game.black_time_left - elapsedSeconds);
+            if (newBlackTime === 0) {
+                newStatus = 'finished';
+                winner = game.creator;
+                winner_by = 'timeout';
+            }
+        }
+
         const { data, error } = await supabase
             .from('games')
             .update({ 
                 fen: newFen, 
-                last_move_at: new Date().toISOString(), 
+                last_move_at: now.toISOString(), 
                 status: newStatus, 
                 winner,
-                winner_by
+                winner_by,
+                white_time_left: newWhiteTime,
+                black_time_left: newBlackTime
             })
             .eq('id', gameId)
             .select()
@@ -438,8 +499,7 @@ export default function GamePage() {
     const timerShouldRun = !gameOver.over && isMyTurn && bothPlayersJoined && firstMoveMade;
 
     const PlayerInfo = ({ player, color, isTurn }) => {
-        const shouldRunTimer = timerShouldRun && isTurn && bothPlayersJoined;
-        const timeLeft = color === 'w' ? game.white_time_left : game.black_time_left;
+        const timeLeft = color === 'w' ? whiteTime : blackTime;
         
         return (
             <div className={`p-3 rounded-lg ${isTurn ? 'bg-blue-600' : 'bg-gray-700'} transition-colors duration-300`}>
@@ -451,9 +511,9 @@ export default function GamePage() {
                     </div>
                 </div>
                 <Timer 
-                    key={`${color}-${timeLeft}-${shouldRunTimer}`}
-                    initialTime={timeLeft} 
-                    isRunning={shouldRunTimer} 
+                    player={player}
+                    timeLeft={timeLeft}
+                    isActive={isTurn && !gameOver.over}
                 />
                 <CapturedPieces captured={capturedPieces[color === 'w' ? 'b' : 'w']} />
             </div>
