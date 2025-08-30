@@ -23,24 +23,45 @@ export default function GamePage() {
     const { id: gameId } = router.query;
     const { user, loading: authLoading } = useAuth();
 
-    // Initialize all state variables at the top level, with chess first
-    const [chess, setChess] = useState(() => new Chess());
+    // Game engine state
+    const [chess] = useState(() => {
+        try {
+            return new Chess();
+        } catch (error) {
+            console.error('Failed to initialize chess engine:', error);
+            return null;
+        }
+    });
+
+    // Game state
     const [game, setGame] = useState(null);
-    const [fen, setFen] = useState(() => chess.fen());
+    const [fen, setFen] = useState('start');
     const [history, setHistory] = useState([]);
-    const [fenError, setFenError] = useState(null);
-    const [pageLoading, setPageLoading] = useState(true);
+    const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
     const [gameOver, setGameOver] = useState({ over: false, reason: '', winner: null });
+    
+    // Player state
     const [whitePlayer, setWhitePlayer] = useState({ username: 'Player 1' });
     const [blackPlayer, setBlackPlayer] = useState({ username: 'Player 2' });
     const [playerColor, setPlayerColor] = useState(null);
-    const [isMyTurn, setIsMyTurn] = useState(false);
+    
+    // Timer state
+    const [whiteTime, setWhiteTime] = useState(600);
+    const [blackTime, setBlackTime] = useState(600);
+    const [lastMoveTime, setLastMoveTime] = useState(Date.now());
+    
+    // UI state
+    const [isClient, setIsClient] = useState(false);
+    const [pageLoading, setPageLoading] = useState(true);
+    const [fenError, setFenError] = useState(null);
     const [showPromotionModal, setShowPromotionModal] = useState(false);
     const [pendingMove, setPendingMove] = useState(null);
-    const [capturedPieces, setCapturedPieces] = useState({ w: {}, b: {} });
-    const [isClient, setIsClient] = useState(false);
-    const [whiteTime, setWhiteTime] = useState(600); // Default 10 minutes
-    const [blackTime, setBlackTime] = useState(600);
+    
+    // Derived state
+    const isMyTurn = useMemo(() => {
+        if (!chess || !playerColor || gameOver.over) return false;
+        return chess.turn() === playerColor;
+    }, [chess, playerColor, gameOver.over]);
 
     // Prevent navigation while game is in progress unless resigned
     useEffect(() => {
@@ -82,62 +103,108 @@ export default function GamePage() {
     }, [gameOver.over, router, game?.opponent, playerColor]);
 
     // Handle pawn promotion
-    const handlePromotion = useCallback(async (promotionPiece) => {
-        if (!chess || !pendingMove) {
-            console.error("Promotion attempted without proper setup");
-            setShowPromotionModal(false);
-            setPendingMove(null);
-            return;
+    const handlePromotion = useCallback(async (pieceType) => {
+        console.log('Handling promotion:', { pieceType, pendingMove });
+        
+        if (!pendingMove || !chess || !game?.id) {
+            console.error('Invalid promotion state:', { 
+                hasPendingMove: !!pendingMove, 
+                hasChess: !!chess,
+                hasGameId: !!game?.id
+            });
+            return false;
         }
 
         try {
-            // Validate the current state
-            if (!isMyTurn || gameOver.over) {
-                throw new Error("Invalid game state for promotion");
-            }
-
-            // Create a temporary chess instance to validate the move
-            const tempChess = new Chess(chess.fen());
-            const moveResult = tempChess.move({
-                from: pendingMove.from,
-                to: pendingMove.to,
-                promotion: promotionPiece
-            });
-
-            if (!moveResult) {
-                throw new Error("Invalid promotion move");
-            }
-
-            // Apply the move to the actual game
+            const { from, to } = pendingMove;
             const move = chess.move({
-                from: pendingMove.from,
-                to: pendingMove.to,
-                promotion: promotionPiece
+                from,
+                to,
+                promotion: pieceType
             });
 
             if (!move) {
-                throw new Error("Failed to apply promotion move");
+                console.error('Failed to make promotion move');
+                toast.error('Invalid promotion move');
+                return false;
             }
 
+            const now = new Date();
             const newFen = chess.fen();
+            
+            // Update local state
             setFen(newFen);
             setHistory(chess.history({ verbose: true }));
             setCapturedPieces(calculateCapturedPieces(newFen));
 
-            // Update the backend
-            await updateBackendWithMove(move);
-            
+            // Calculate elapsed time
+            const moveTimestamp = now.toISOString();
+            const lastMoveAt = new Date(game.last_move_at);
+            const elapsedSeconds = Math.floor((now - lastMoveAt) / 1000);
+
+            // Update time remaining
+            const newWhiteTime = move.color === 'w' 
+                ? Math.max(0, game.white_time_left - elapsedSeconds)
+                : game.white_time_left;
+                
+            const newBlackTime = move.color === 'b'
+                ? Math.max(0, game.black_time_left - elapsedSeconds)
+                : game.black_time_left;
+
+            // Prepare game update
+            const gameUpdate = {
+                fen: newFen,
+                last_move: JSON.stringify(move),
+                last_move_at: moveTimestamp,
+                white_time_left: newWhiteTime,
+                black_time_left: newBlackTime
+            };
+
+            // Check for game-ending conditions
+            if (chess.isCheckmate()) {
+                Object.assign(gameUpdate, {
+                    status: 'finished',
+                    winner: move.color === 'w' ? game.creator : game.opponent,
+                    winner_by: 'checkmate'
+                });
+                setGameOver({
+                    over: true,
+                    reason: 'checkmate',
+                    winner: move.color === 'w' ? game.creator : game.opponent
+                });
+            } else if (chess.isDraw()) {
+                Object.assign(gameUpdate, {
+                    status: 'finished',
+                    winner_by: 'draw'
+                });
+                setGameOver({
+                    over: true,
+                    reason: 'draw',
+                    winner: null
+                });
+            }
+
+            // Update database
+            const { error } = await supabase
+                .from('games')
+                .update(gameUpdate)
+                .eq('id', game.id);
+
+            if (error) throw error;
+
+            return true;
         } catch (error) {
-            console.error('Error in promotion:', error);
-            chess.load(fen); // Reset to previous position
-            toast.error(error.message || 'Failed to promote pawn. Please try again.');
+            console.error('Promotion error:', error);
+            toast.error('Failed to promote pawn');
+            // Reset to previous state if needed
+            chess.load(fen);
+            setFen(chess.fen());
+            return false;
         } finally {
             setShowPromotionModal(false);
             setPendingMove(null);
         }
-    }, [chess, pendingMove, isMyTurn, gameOver.over, fen, updateBackendWithMove]);
-
-    useEffect(() => {
+    }, [pendingMove, chess, game, fen]);    useEffect(() => {
         setIsClient(true);
     }, []);
 
@@ -175,26 +242,31 @@ export default function GamePage() {
         setChess(new Chess());
     }, []);
 
-    // Fetch game and player data
+    // Initialize game data
     const fetchGameData = useCallback(async () => {
         if (!gameId || !user || !chess) return;
 
         try {
+            setPageLoading(true);
             const { data: gameData, error } = await supabase
                 .from('games')
-                .select('*, creator_profile:profiles!creator(username, rating), opponent_profile:profiles!opponent(username, rating)')
+                .select(`
+                    *,
+                    creator_profile:profiles!creator(username, rating),
+                    opponent_profile:profiles!opponent(username, rating)
+                `)
                 .eq('id', gameId)
                 .single();
 
             if (error || !gameData) {
-                toast.dismiss();
+                console.error('Game fetch error:', error);
                 toast.error('Game not found.');
                 router.replace('/dashboard');
                 return;
             }
 
-                        setGame(gameData);
-                        const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            setGame(gameData);
+            const startingFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
                         
                         // For new games or invalid states, use starting position
                         if (!gameData.fen) {
@@ -387,60 +459,141 @@ export default function GamePage() {
         }
     }, [chess, game, gameId, setFen]);
 
-    const handleMove = useCallback(({ sourceSquare, targetSquare }) => {
-        if (!chess || !isMyTurn || gameOver.over) return;
+    const handleMove = useCallback(async ({ sourceSquare, targetSquare }) => {
+        console.log('Move attempted:', { sourceSquare, targetSquare });
+        
+        if (!chess || !isMyTurn || gameOver.over || !game?.id) {
+            console.log('Move rejected:', { 
+                hasChess: !!chess, 
+                isMyTurn, 
+                isGameOver: gameOver.over 
+            });
+            return false;
+        }
 
         try {
-            const moves = chess.moves({ square: sourceSquare, verbose: true });
-            const move = moves.find(m => m.to === targetSquare);
+            // Get the piece and validate basic move conditions
+            const piece = chess.get(sourceSquare);
+            if (!piece) {
+                toast.error("No piece on selected square");
+                return false;
+            }
+            
+            if (piece.color !== playerColor) {
+                toast.error("You can only move your own pieces");
+                return false;
+            }
+
+            // Check if this could be a pawn promotion
+            const isPawnPromotion = 
+                piece.type === 'p' && 
+                ((piece.color === 'w' && targetSquare[1] === '8') || 
+                 (piece.color === 'b' && targetSquare[1] === '1'));
+
+            if (isPawnPromotion) {
+                // Verify it's a legal promotion move first
+                const legalMoves = chess.moves({ 
+                    square: sourceSquare, 
+                    verbose: true 
+                });
+                
+                if (legalMoves.some(m => m.to === targetSquare)) {
+                    console.log('Initiating pawn promotion');
+                    setPendingMove({ from: sourceSquare, to: targetSquare });
+                    setShowPromotionModal(true);
+                    return true;
+                }
+            }
+
+            // Regular move
+            const move = chess.move({
+                from: sourceSquare,
+                to: targetSquare
+            });
 
             if (!move) {
-                // Context-specific error messages
-                const piece = chess.get(sourceSquare);
-                if (!piece) {
-                    toast.dismiss();
-                    toast.error("No piece on selected square.");
-                } else if (piece.color !== playerColor) {
-                    toast.dismiss();
-                    toast.error("You cannot move your opponent's piece.");
-                } else if (sourceSquare === targetSquare) {
-                    toast.dismiss();
-                    toast.error("You must select a destination square.");
-                } else if (chess.get(targetSquare) && chess.get(targetSquare).color === playerColor) {
-                    toast.dismiss();
-                    toast.error("You cannot capture your own piece.");
-                } else {
-                    toast.dismiss();
-                    toast.error("Invalid Move! This piece is blocked or move is not allowed.");
-                }
-                return;
-            }
-
-            // Is it a promotion?
-            if (move.flags.includes('p')) {
-                setPendingMove({ from: sourceSquare, to: targetSquare });
-                setShowPromotionModal(true);
-                return;
-            }
-
-            // Make the move
-            const result = chess.move({ from: sourceSquare, to: targetSquare });
-            if (!result) {
+                console.log('Invalid move detected');
                 if (chess.in_check()) {
-                    toast.dismiss();
-                    toast.error("You cannot place your King in check.");
+                    toast.error("That move leaves your king in check");
                 } else {
-                    toast.dismiss();
-                    toast.error("Unexpected error: move could not be completed.");
+                    toast.error("That move is not allowed");
                 }
-                return;
+                return false;
             }
-            updateBackendWithMove(result);
-        } catch (err) {
-            toast.dismiss();
-            toast.error("Unexpected error during move: " + (err.message || err));
+
+            const now = new Date();
+            const newFen = chess.fen();
+            
+            // Update local state
+            setFen(newFen);
+            setHistory(chess.history({ verbose: true }));
+            setCapturedPieces(calculateCapturedPieces(newFen));
+
+            // Calculate elapsed time
+            const moveTimestamp = now.toISOString();
+            const lastMoveAt = new Date(game.last_move_at);
+            const elapsedSeconds = Math.floor((now - lastMoveAt) / 1000);
+
+            // Update time remaining
+            const newWhiteTime = move.color === 'w' 
+                ? Math.max(0, game.white_time_left - elapsedSeconds)
+                : game.white_time_left;
+                
+            const newBlackTime = move.color === 'b'
+                ? Math.max(0, game.black_time_left - elapsedSeconds)
+                : game.black_time_left;
+
+            // Prepare game update
+            const gameUpdate = {
+                fen: newFen,
+                last_move: JSON.stringify(move),
+                last_move_at: moveTimestamp,
+                white_time_left: newWhiteTime,
+                black_time_left: newBlackTime
+            };
+
+            // Check for game-ending conditions
+            if (chess.isCheckmate()) {
+                Object.assign(gameUpdate, {
+                    status: 'finished',
+                    winner: move.color === 'w' ? game.creator : game.opponent,
+                    winner_by: 'checkmate'
+                });
+                setGameOver({
+                    over: true,
+                    reason: 'checkmate',
+                    winner: move.color === 'w' ? game.creator : game.opponent
+                });
+            } else if (chess.isDraw()) {
+                Object.assign(gameUpdate, {
+                    status: 'finished',
+                    winner_by: 'draw'
+                });
+                setGameOver({
+                    over: true,
+                    reason: 'draw',
+                    winner: null
+                });
+            }
+
+            // Update database
+            const { error } = await supabase
+                .from('games')
+                .update(gameUpdate)
+                .eq('id', game.id);
+
+            if (error) throw error;
+
+            return true;
+        } catch (error) {
+            console.error('Move error:', error);
+            toast.error('Failed to make move');
+            // Reset to previous state if needed
+            chess.load(fen);
+            setFen(chess.fen());
+            return false;
         }
-    }, [chess, isMyTurn, gameOver.over, playerColor, updateBackendWithMove]);
+    }, [chess, isMyTurn, gameOver.over, playerColor, game, fen]);
 
     // HandlePromotion is already defined above
 
